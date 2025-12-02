@@ -3,7 +3,9 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
 
 typedef void* TransformCorrectionMap;
 
@@ -35,6 +37,8 @@ TransformCorrectionStatus spirv_webgpu_transform_correction_map_index(
 
 void spirv_webgpu_transform_correction_map_free(TransformCorrectionMap correction_map);
 
+#ifdef __cplusplus
 }
+#endif
 
 #endif

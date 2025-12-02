@@ -104,7 +104,7 @@ pub enum TransformCorrectionType {
 
 // TransformCorrectionStatus spirv_webgpu_transform_correction_map_index(uint32_t set, uint32_t binding, TransformCorrectionType** corrections_ptr, uint32_t* correction_count);
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn spirv_transform_correction_map_index(
+pub unsafe extern "C" fn spirv_webgpu_transform_correction_map_index(
     correction_map: TransformCorrectionMap,
     set: u32,
     binding: u32,
