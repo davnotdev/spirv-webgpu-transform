@@ -5,9 +5,9 @@
 [![License Badge](https://img.shields.io/crates/l/spirv-webgpu-transform)](LICENSE)
 [![Downloads Badge](https://img.shields.io/crates/d/spirv-webgpu-transform)](https://crates.io/crates/spirv-webgpu-transform)
 
-When porting native games to the web using WebGPU, it becomes neccessary to translate shaders (typical from SPIR-V) to WGSL using [`naga`](https://github.com/gfx-rs/wgpu) or [`tint`](https://dawn.googlesource.com/dawn).
-Unfortunately, WGSL is young, and the specification lacks support for many features that have shader programmers have become accustomed to.
-This project aims to transform commonly but unsupported SPIRV into a form that `naga` and `tint` can transpile.
+When porting native games to the web using WebGPU, it becomes neccessary to translate shaders (typically from SPIR-V) to WGSL using [`naga`](https://github.com/gfx-rs/wgpu) or [`tint`](https://dawn.googlesource.com/dawn).
+Unfortunately, the WGSL specification lacks support for many features that have shader programmers have become accustomed to.
+This project aims to transform common but unsupported SPIRV shaders into a form that `naga` and `tint` can transpile.
 
 ## Feature Summary
 
