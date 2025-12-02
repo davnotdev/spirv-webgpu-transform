@@ -74,13 +74,13 @@ test_with_spv_and_fn!(
 
 test_with_spv_and_fn!(
     splitdref_test_wrong_type_image,
-    SPV_VALIDATE,
+    DO_ALL,
     "./test/splitdref/test_wrong_type_image.spv",
     drefsplitter
 );
 test_with_spv_and_fn!(
     splitdref_test_image,
-    SPV_VALIDATE,
+    DO_ALL,
     "./test/splitdref/test_image.spv",
     drefsplitter
 );
@@ -98,7 +98,7 @@ test_with_spv_and_fn!(
 );
 test_with_spv_and_fn!(
     splitdref_test_sampler,
-    SPV_VALIDATE,
+    DO_ALL,
     "./test/splitdref/test_sampler.spv",
     drefsplitter
 );
