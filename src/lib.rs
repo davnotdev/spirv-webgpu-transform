@@ -1,3 +1,6 @@
+//! See [https://github.com/davnotdev/spirv-webgpu-transform](https://github.com/davnotdev/spirv-webgpu-transform) for more details.
+//!
+
 use std::collections::{HashMap, HashSet};
 
 mod correction;

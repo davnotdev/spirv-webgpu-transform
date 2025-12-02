@@ -48,7 +48,8 @@ where
 }
 
 /// Perform the operation on a `Vec<u32>`.
-/// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`
+/// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`.
+/// Either update the existing `corrections` or create a new one.
 pub fn drefsplitter(
     in_spv: &[u32],
     corrections: &mut Option<CorrectionMap>,
