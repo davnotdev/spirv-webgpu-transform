@@ -148,7 +148,7 @@ cargo r -- combimg in.spv out.spv
 
 ## FFI Usage
 
-See [ffi/bin/spv_webgpu_transform.c](`ffi/bin/spv_webgpu_transform.c`) 
+See [`ffi/bin/spv_webgpu_transform.c`](ffi/bin/spv_webgpu_transform.c) 
 
 ---
 
