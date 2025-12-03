@@ -103,7 +103,7 @@ void main() {
 | `test_nested2_image.frag`         | ✅          | ❌\*    | ❌   |
 | `test_hidden_dref.frag`           | ✅          | ❌\*    | ❌   |
 | `test_hidden2_dref.frag`          | ✅          | ❌\*    | ❌   |
-| `test_hidden3_dref.frag`          | ❌          | ❌\*    | ❌   |
+| `test_hidden3_dref.frag`          | ❌          | ❌      | ❌   |
 
 > \* With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
 
