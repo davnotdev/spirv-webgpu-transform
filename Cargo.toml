@@ -3,7 +3,7 @@ members = ["ffi"]
 
 [package]
 name = "spirv-webgpu-transform"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Transform SPIRV to be webgpu friendly"
 repository = "https://github.com/davnotdev/spirv-webgpu-transform"
