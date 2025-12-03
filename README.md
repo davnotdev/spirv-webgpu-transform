@@ -1,7 +1,7 @@
 # SPIRV WebGPU Transforms
 
 [![Version Badge](https://img.shields.io/crates/v/spirv-webgpu-transform)](https://crates.io/crates/spirv-webgpu-transform)
-[![Docs Badge](https://img.shields.io/docsrs/spirv-webgpu-transform/latest)](https://docs.rs/spirv_combimgsampsplitter/latest/spirv-webgpu-transform/)
+[![Docs Badge](https://img.shields.io/docsrs/spirv-webgpu-transform/latest)](https://docs.rs/spirv-webgpu-transform/latest/spirv_webgpu_transform/)
 [![License Badge](https://img.shields.io/crates/l/spirv-webgpu-transform)](LICENSE)
 [![Downloads Badge](https://img.shields.io/crates/d/spirv-webgpu-transform)](https://crates.io/crates/spirv-webgpu-transform)
 
