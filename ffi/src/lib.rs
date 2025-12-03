@@ -139,5 +139,7 @@ pub unsafe extern "C" fn spirv_webgpu_transform_correction_map_index(
 pub unsafe extern "C" fn spirv_webgpu_transform_correction_map_free(
     correction_map: TransformCorrectionMap,
 ) {
-    let _ = unsafe { Box::from_raw(cast_correction_map(correction_map)) };
+    if !correction_map.is_null() {
+        let _ = unsafe { Box::from_raw(cast_correction_map(correction_map)) };
+    }
 }
