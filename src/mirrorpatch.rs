@@ -5,7 +5,7 @@ type LeftRightOutput = (Option<Vec<u32>>, Option<Vec<u32>>);
 /// Reflect one set of patched uniforms onto another shader with the same underlying set of
 /// uniforms.
 /// This is important for ensuring patched vertex and fragment shaders have the same layout.
-/// This is because some transformations occurs based off what instructions appear, so as a result,
+/// This is because some transformations occur based off what instructions appear, so as a result,
 /// the vertex and fragment shader may have a different layout after a set of transformations
 pub fn mirrorpatch(
     left_spv: &[u32],

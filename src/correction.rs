@@ -23,6 +23,9 @@ pub struct CorrectionSet {
     pub bindings: HashMap<u32, CorrectionBinding>,
 }
 
+/// Lookup a set and a binding for a list of [`CorrectionType`].
+/// In order, insert a new variable for each, see [`CorrectionType`] for what type of object should
+/// be inserted for each variant.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CorrectionMap {
     pub sets: HashMap<u32, CorrectionSet>,
