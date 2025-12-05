@@ -196,7 +196,7 @@ pub fn combimgsampsplitter(
                      new_sampler_v_res_id,
                      ..
                  }| {
-                    util::AffectedDecoration::Variable {
+                    AffectedDecoration {
                         original_res_id: *v_res_id,
                         new_res_id: *new_sampler_v_res_id,
                         correction_type: CorrectionType::SplitCombined,

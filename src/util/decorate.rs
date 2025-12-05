@@ -1,18 +1,10 @@
 use super::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AffectedDecoration {
-    Variable {
-        original_res_id: u32,
-        new_res_id: u32,
-        correction_type: CorrectionType,
-    },
-    SetBinding {
-        set: u32,
-        binding: u32,
-        new_res_id: u32,
-        correction_type: CorrectionType,
-    },
+pub struct AffectedDecoration {
+    pub original_res_id: u32,
+    pub new_res_id: u32,
+    pub correction_type: CorrectionType,
 }
 
 pub struct DecorateIn<'a> {
@@ -68,53 +60,28 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                 .1 = Some(decoration_value);
         }
 
-        affected_variables
-            .iter()
-            .for_each(|affected| match affected {
-                AffectedDecoration::Variable {
-                    original_res_id,
-                    new_res_id,
-                    correction_type,
-                } => {
-                    if *original_res_id == target_id {
-                        if decoration_id == SPV_DECORATION_BINDING {
-                            new_variable_id_to_decorations
-                                .entry((new_res_id, correction_type))
-                                .or_insert((None, None))
-                                .0 = Some((d_idx, decoration_value));
-                        } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
-                            new_variable_id_to_decorations
-                                .entry((new_res_id, correction_type))
-                                .or_insert((None, None))
-                                .1 = Some((d_idx, decoration_value));
-                            descriptor_sets_to_correct.insert(decoration_value);
-                        }
+        affected_variables.iter().for_each(
+            |AffectedDecoration {
+                 original_res_id,
+                 new_res_id,
+                 correction_type,
+             }| {
+                if *original_res_id == target_id {
+                    if decoration_id == SPV_DECORATION_BINDING {
+                        new_variable_id_to_decorations
+                            .entry((new_res_id, correction_type))
+                            .or_insert((None, None))
+                            .0 = Some((d_idx, decoration_value));
+                    } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
+                        new_variable_id_to_decorations
+                            .entry((new_res_id, correction_type))
+                            .or_insert((None, None))
+                            .1 = Some((d_idx, decoration_value));
+                        descriptor_sets_to_correct.insert(decoration_value);
                     }
                 }
-                AffectedDecoration::SetBinding {
-                    set,
-                    binding,
-                    new_res_id,
-                    correction_type,
-                } => {
-                    if decoration_id == SPV_DECORATION_DESCRIPTOR_SET && decoration_value == *set {
-                        // Sigh, I don't want to restructure everything just to cram this in
-                        if let Some(binding_idx) = op_decorate_idxs.iter().find(|&&idx| {
-                            let binding_target_id = spv[idx + 1];
-                            let decoration_id = spv[idx + 2];
-                            let decoration_value = spv[idx + 3];
-                            decoration_id == SPV_DECORATION_BINDING
-                                && decoration_value == *binding
-                                && target_id == binding_target_id
-                        }) {
-                            *new_variable_id_to_decorations
-                                .entry((new_res_id, correction_type))
-                                .or_insert((None, None)) =
-                                (Some((*binding_idx, *binding)), Some((d_idx, *set)));
-                        }
-                    }
-                }
-            });
+            },
+        );
     });
 
     // - Sort and unwrap set binding pairs.

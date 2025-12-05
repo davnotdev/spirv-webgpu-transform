@@ -506,7 +506,7 @@ pub fn drefsplitter(
             instruction: new_variable,
         });
 
-        affected_variables.push(util::AffectedDecoration::Variable {
+        affected_variables.push(AffectedDecoration {
             original_res_id: spv[variable_idx + 2],
             new_res_id: new_variable_id,
             correction_type: match complement_ty {

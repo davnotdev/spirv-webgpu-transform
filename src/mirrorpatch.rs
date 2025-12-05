@@ -1,5 +1,7 @@
 use super::*;
 
+type LeftRightOutput = (Option<Vec<u32>>, Option<Vec<u32>>);
+
 /// Reflect one set of patched uniforms onto another shader with the same underlying set of
 /// uniforms.
 /// This is important for ensuring patched vertex and fragment shaders have the same layout.
@@ -10,7 +12,7 @@ pub fn mirrorpatch(
     left_corrections: &mut Option<CorrectionMap>,
     right_spv: &[u32],
     right_corrections: &mut Option<CorrectionMap>,
-) -> Result<(Option<Vec<u32>>, Option<Vec<u32>>), ()> {
+) -> Result<LeftRightOutput, ()> {
     if left_corrections.is_none() && right_corrections.is_none() {
         return Ok((None, None));
     }
@@ -209,7 +211,7 @@ fn patch_spv_decorations(
             });
 
             // Convert into affected decoration
-            AffectedDecoration::Variable {
+            AffectedDecoration {
                 original_res_id: original_variable_id,
                 new_res_id,
                 correction_type,
