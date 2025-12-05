@@ -12,18 +12,18 @@ pub enum CorrectionType {
     SplitDrefComparison = 2,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CorrectionBinding {
-    /// In order, what additional bindings have been appended to this one. 
+    /// In order, what additional bindings have been appended to this one.
     pub corrections: Vec<CorrectionType>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CorrectionSet {
     pub bindings: HashMap<u32, CorrectionBinding>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CorrectionMap {
     pub sets: HashMap<u32, CorrectionSet>,
 }

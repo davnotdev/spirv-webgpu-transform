@@ -16,3 +16,6 @@ glslc splitdref/test_hidden_dref.frag -o splitdref/test_hidden_dref.spv
 glslc splitdref/test_hidden2_dref.frag -o splitdref/test_hidden2_dref.spv
 glslc splitdref/test_hidden3_dref.frag -o splitdref/test_hidden3_dref.spv
 spirv-as splitdref/test_wrong_type_image.spvasm -o splitdref/test_wrong_type_image.spv
+
+glslc mirrorpatch/test1.vert -o mirrorpatch/test1.vert.spv
+glslc mirrorpatch/test1.frag -o mirrorpatch/test1.frag.spv

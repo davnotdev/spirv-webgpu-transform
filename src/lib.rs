@@ -4,6 +4,7 @@
 use std::collections::{HashMap, HashSet};
 
 mod correction;
+mod mirrorpatch;
 mod splitcombined;
 mod splitdref;
 mod spv;
@@ -16,6 +17,7 @@ use spv::*;
 use util::*;
 
 pub use correction::*;
+pub use mirrorpatch::*;
 pub use splitcombined::*;
 pub use splitdref::*;
 

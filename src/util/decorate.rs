@@ -1,9 +1,18 @@
 use super::*;
 
-pub struct DecorationVariable {
-    pub original_res_id: u32,
-    pub new_res_id: u32,
-    pub correction_type: CorrectionType,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AffectedDecoration {
+    Variable {
+        original_res_id: u32,
+        new_res_id: u32,
+        correction_type: CorrectionType,
+    },
+    SetBinding {
+        set: u32,
+        binding: u32,
+        new_res_id: u32,
+        correction_type: CorrectionType,
+    },
 }
 
 pub struct DecorateIn<'a> {
@@ -13,7 +22,7 @@ pub struct DecorateIn<'a> {
     pub first_op_deocrate_idx: Option<usize>,
     pub op_decorate_idxs: &'a [usize],
 
-    pub affected_variables: &'a [DecorationVariable],
+    pub affected_decorations: &'a [AffectedDecoration],
     pub corrections: &'a mut Option<CorrectionMap>,
 }
 
@@ -27,7 +36,7 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
         instruction_inserts,
         first_op_deocrate_idx,
         op_decorate_idxs,
-        affected_variables,
+        affected_decorations: affected_variables,
         corrections,
     } = d_in;
 
@@ -39,48 +48,73 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
 
     // - Find the current binding and descriptor set pair for each combimgsamp
     op_decorate_idxs.iter().for_each(|&d_idx| {
-        affected_variables.iter().for_each(
-            |&DecorationVariable {
-                 original_res_id,
-                 new_res_id,
-                 correction_type,
-             }| {
-                let target_id = spv[d_idx + 1];
-                let decoration_id = spv[d_idx + 2];
-                let decoration_value = spv[d_idx + 3];
+        let target_id = spv[d_idx + 1];
+        let decoration_id = spv[d_idx + 2];
+        let decoration_value = spv[d_idx + 3];
+        if decoration_id == SPV_DECORATION_BINDING
+            && let Some(all_descriptor_sets) = all_descriptor_sets.as_mut()
+        {
+            all_descriptor_sets
+                .entry(target_id)
+                .or_insert((None, None))
+                .0 = Some(decoration_value);
+        }
+        if decoration_id == SPV_DECORATION_DESCRIPTOR_SET
+            && let Some(all_descriptor_sets) = all_descriptor_sets.as_mut()
+        {
+            all_descriptor_sets
+                .entry(target_id)
+                .or_insert((None, None))
+                .1 = Some(decoration_value);
+        }
 
-                if decoration_id == SPV_DECORATION_BINDING {
-                    if original_res_id == target_id {
-                        new_variable_id_to_decorations
-                            .entry((new_res_id, correction_type))
-                            .or_insert((None, None))
-                            .0 = Some((d_idx, spv[d_idx + 3]));
-                    }
-
-                    if let Some(all_descriptor_sets) = all_descriptor_sets.as_mut() {
-                        all_descriptor_sets
-                            .entry(target_id)
-                            .or_insert((None, None))
-                            .0 = Some(decoration_value);
-                    }
-                } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
-                    if original_res_id == target_id {
-                        new_variable_id_to_decorations
-                            .entry((new_res_id, correction_type))
-                            .or_insert((None, None))
-                            .1 = Some((d_idx, decoration_value));
-                        descriptor_sets_to_correct.insert(decoration_value);
-                    }
-
-                    if let Some(all_descriptor_sets) = all_descriptor_sets.as_mut() {
-                        all_descriptor_sets
-                            .entry(target_id)
-                            .or_insert((None, None))
-                            .1 = Some(decoration_value);
+        affected_variables
+            .iter()
+            .for_each(|affected| match affected {
+                AffectedDecoration::Variable {
+                    original_res_id,
+                    new_res_id,
+                    correction_type,
+                } => {
+                    if *original_res_id == target_id {
+                        if decoration_id == SPV_DECORATION_BINDING {
+                            new_variable_id_to_decorations
+                                .entry((new_res_id, correction_type))
+                                .or_insert((None, None))
+                                .0 = Some((d_idx, decoration_value));
+                        } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
+                            new_variable_id_to_decorations
+                                .entry((new_res_id, correction_type))
+                                .or_insert((None, None))
+                                .1 = Some((d_idx, decoration_value));
+                            descriptor_sets_to_correct.insert(decoration_value);
+                        }
                     }
                 }
-            },
-        );
+                AffectedDecoration::SetBinding {
+                    set,
+                    binding,
+                    new_res_id,
+                    correction_type,
+                } => {
+                    if decoration_id == SPV_DECORATION_DESCRIPTOR_SET && decoration_value == *set {
+                        // Sigh, I don't want to restructure everything just to cram this in
+                        if let Some(binding_idx) = op_decorate_idxs.iter().find(|&&idx| {
+                            let binding_target_id = spv[idx + 1];
+                            let decoration_id = spv[idx + 2];
+                            let decoration_value = spv[idx + 3];
+                            decoration_id == SPV_DECORATION_BINDING
+                                && decoration_value == *binding
+                                && target_id == binding_target_id
+                        }) {
+                            *new_variable_id_to_decorations
+                                .entry((new_res_id, correction_type))
+                                .or_insert((None, None)) =
+                                (Some((*binding_idx, *binding)), Some((d_idx, *set)));
+                        }
+                    }
+                }
+            });
     });
 
     // - Sort and unwrap set binding pairs.
@@ -154,11 +188,11 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                 previous_spv_idx: first_op_deocrate_idx.unwrap(),
                 instruction: vec![
                     encode_word(4, SPV_INSTRUCTION_OP_DECORATE),
-                    *new_res_id,
+                    **new_res_id,
                     SPV_DECORATION_DESCRIPTOR_SET,
                     *descriptor_set,
                     encode_word(4, SPV_INSTRUCTION_OP_DECORATE),
-                    *new_res_id,
+                    **new_res_id,
                     SPV_DECORATION_BINDING,
                     binding + 1,
                 ],
@@ -192,7 +226,7 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                             .get_mut(binding)
                             .unwrap()
                             .corrections
-                            .insert(my_binding.unsigned_abs(), *correction_type);
+                            .insert(my_binding.unsigned_abs(), **correction_type);
 
                         break;
                     }

@@ -1,7 +1,11 @@
-use super::{combimgsampsplitter, drefsplitter, u8_slice_to_u32_vec, u32_slice_to_u8_vec};
+use super::{
+    combimgsampsplitter, drefsplitter, mirrorpatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
+};
 
 use naga::{back, front, valid};
 use spirv_tools::val::{self, Validator};
+
+mod test_mirrorpatch;
 
 const SPV_VALIDATE: u8 = 0b0000001;
 const NAGA_VALIDATE: u8 = 0b0000010;

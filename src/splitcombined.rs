@@ -188,7 +188,7 @@ pub fn combimgsampsplitter(
         instruction_inserts: &mut instruction_inserts,
         first_op_deocrate_idx,
         op_decorate_idxs: &op_decorate_idxs,
-        affected_variables: &v_res
+        affected_decorations: &v_res
             .iter()
             .map(
                 |VariableOut {
@@ -196,7 +196,7 @@ pub fn combimgsampsplitter(
                      new_sampler_v_res_id,
                      ..
                  }| {
-                    util::DecorationVariable {
+                    util::AffectedDecoration::Variable {
                         original_res_id: *v_res_id,
                         new_res_id: *new_sampler_v_res_id,
                         correction_type: CorrectionType::SplitCombined,
