@@ -49,6 +49,7 @@ pub fn correct_decorate(cd_in: CorrectDecorateIn) {
                 (this_descriptor_set == descriptor_set).then_some((binding_idx, this_binding))
             })
             .collect::<Vec<_>>();
+        bindings.sort_by_cached_key(|&(id, _)| id);
         bindings.sort_by_cached_key(|&(_, binding)| binding);
 
         // We can assume that our new ~~samplers~~ variables will have a greater instruction ID than the original
