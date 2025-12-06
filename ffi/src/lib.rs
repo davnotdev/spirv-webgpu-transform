@@ -135,6 +135,17 @@ pub unsafe extern "C" fn spirv_webgpu_transform_mirrorpatch_alloc(
     }
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn spirv_webgpu_transform_mirrorpatch_free(
+    out_left_spv: *mut u32,
+    out_right_spv: *mut u32,
+) {
+    unsafe {
+        drop(Box::from_raw(out_left_spv));
+        drop(Box::from_raw(out_right_spv));
+    }
+}
+
 #[repr(C)]
 pub enum TransformCorrectionStatus {
     SpirvWebgpuTransformCorrectionStatusNone = 0,

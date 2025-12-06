@@ -9,7 +9,7 @@ extern "C" {
 
 typedef void *TransformCorrectionMap;
 
-#define SPIRV_WEBGPU_TRANFORM_CORRECTION_MAP_NULL NULL
+#define SPIRV_WEBGPU_TRANSFORM_CORRECTION_MAP_NULL NULL
 
 void spirv_webgpu_transform_combimgsampsplitter_alloc(uint32_t *in_spv, uint32_t in_count, uint32_t **out_spv, uint32_t *out_count, TransformCorrectionMap *correction_map);
 void spirv_webgpu_transform_combimgsampsplitter_free(uint32_t *out_spv);
@@ -21,7 +21,7 @@ void spirv_webgpu_transform_mirrorpatch_alloc(
 		uint32_t *in_right_spv, uint32_t in_right_count, TransformCorrectionMap *right_corrections,
 		uint32_t **out_left_spv, uint32_t *out_left_count,
 		uint32_t **out_right_spv, uint32_t *out_right_count);
-void spirv_webgpu_transform_drefsplitter_free(uint32_t *out_spv);
+void spirv_webgpu_transform_mirrorpatch_free(uint32_t *out_left_spv, uint32_t *out_right_spv);
 
 typedef enum {
 	SPIRV_WEBGPU_TRANSFORM_CORRECTION_STATUS_NONE = 0,
