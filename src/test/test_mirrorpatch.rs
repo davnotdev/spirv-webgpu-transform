@@ -22,8 +22,8 @@ fn test_basic_mirrorpatch_inner(vert_spv: &[u8], frag_spv: &[u8], assert_fn: Ass
     let mut left_map = None;
     let mut right_map = None;
 
-    // let vert_spv = combimgsampsplitter(&vert_spv, &mut left_map).unwrap();
-    // let frag_spv = combimgsampsplitter(&frag_spv, &mut right_map).unwrap();
+    let vert_spv = combimgsampsplitter(&vert_spv, &mut left_map).unwrap();
+    let frag_spv = combimgsampsplitter(&frag_spv, &mut right_map).unwrap();
 
     let vert_spv = drefsplitter(&vert_spv, &mut left_map).unwrap();
     let frag_spv = drefsplitter(&frag_spv, &mut right_map).unwrap();
