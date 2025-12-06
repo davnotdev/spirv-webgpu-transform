@@ -1,7 +1,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use core::{ffi, ptr, slice};
-use spirv_webgpu_transform::{CorrectionMap, combimgsampsplitter, drefsplitter};
+use spirv_webgpu_transform::{CorrectionMap, combimgsampsplitter, drefsplitter, mirrorpatch};
 
 type TransformCorrectionMap = *mut ffi::c_void;
 
@@ -87,6 +87,52 @@ pub unsafe extern "C" fn spirv_webgpu_transform_drefsplitter_alloc(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn spirv_webgpu_transform_drefsplitter_free(out_spv: *mut u32) {
     unsafe { drop(Box::from_raw(out_spv)) }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn spirv_webgpu_transform_mirrorpatch_alloc(
+    in_left_spv: *const u32,
+    in_left_count: u32,
+    left_corrections: *mut TransformCorrectionMap,
+    in_right_spv: *const u32,
+    in_right_count: u32,
+    right_corrections: *mut TransformCorrectionMap,
+    out_left_spv: *mut *const u32,
+    out_left_count: *mut u32,
+    out_right_spv: *mut *const u32,
+    out_right_count: *mut u32,
+) {
+    let left_correction_map = unsafe { alloc_or_pass_correction_map(left_corrections) };
+    let right_correction_map = unsafe { alloc_or_pass_correction_map(right_corrections) };
+
+    let in_left_spv = unsafe { slice::from_raw_parts(in_left_spv, in_left_count as usize) };
+    let in_right_spv = unsafe { slice::from_raw_parts(in_right_spv, in_right_count as usize) };
+
+    match mirrorpatch(
+        in_left_spv,
+        left_correction_map,
+        in_right_spv,
+        right_correction_map,
+    ) {
+        Ok((left_spv, right_spv)) => unsafe {
+            // We will return an copied output if output is null just so that no one blows their
+            // foot off (no null outputs).
+            let left_spv = left_spv.unwrap_or_else(|| in_left_spv.to_vec());
+            let right_spv = right_spv.unwrap_or_else(|| in_right_spv.to_vec());
+
+            *out_left_count = left_spv.len() as u32;
+            let leaked = Box::leak(left_spv.into_boxed_slice());
+            *out_left_spv = leaked.as_ptr();
+
+            *out_right_count = right_spv.len() as u32;
+            let leaked = Box::leak(right_spv.into_boxed_slice());
+            *out_right_spv = leaked.as_ptr();
+        },
+        Err(_) => unsafe {
+            *out_left_spv = ptr::null();
+            *out_left_count = 0;
+        },
+    }
 }
 
 #[repr(C)]
