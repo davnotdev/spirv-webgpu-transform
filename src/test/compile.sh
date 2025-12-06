@@ -19,3 +19,5 @@ spirv-as splitdref/test_wrong_type_image.spvasm -o splitdref/test_wrong_type_ima
 
 glslc mirrorpatch/test1.vert -o mirrorpatch/test1.vert.spv
 glslc mirrorpatch/test1.frag -o mirrorpatch/test1.frag.spv
+glslc mirrorpatch/test2.vert -o mirrorpatch/test2.vert.spv
+glslc mirrorpatch/test2.frag -o mirrorpatch/test2.frag.spv

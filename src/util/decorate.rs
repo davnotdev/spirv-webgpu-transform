@@ -31,7 +31,6 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
         affected_decorations: affected_variables,
         corrections,
     } = d_in;
-
     let mut new_variable_id_to_decorations = HashMap::new();
     let mut descriptor_sets_to_correct = HashSet::new();
 
@@ -180,11 +179,17 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                 input_bindings.sort_by_key(|(k, _)| **k);
                 let input_bindings = input_bindings
                     .iter()
-                    .map(|(binding, correction)| (binding, correction.corrections.len() + 1))
+                    .map(|(binding, correction)| (binding, correction.corrections.len()))
                     .collect::<Vec<_>>();
 
                 let mut my_binding = *binding as isize;
+                // `last_binding` ensures we properly "skip" bindings not found in the shader
+                let mut last_binding = 0;
                 for &(binding, binding_count) in input_bindings.iter() {
+                    my_binding -=
+                        binding_count as isize + **binding as isize - last_binding as isize;
+                    last_binding = **binding;
+
                     if my_binding <= 0 {
                         // The leftover `my_binding` corresponds with the case of having to insert
                         // between or after previously inserted variables
@@ -197,7 +202,6 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
 
                         break;
                     }
-                    my_binding -= binding_count as isize;
                 }
             }
         },

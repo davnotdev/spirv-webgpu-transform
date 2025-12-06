@@ -84,6 +84,7 @@ pub fn mirrorpatch(
             );
         }
     }
+
     let l = (!left_affected_decorations.is_empty())
         .then(|| {
             patch_spv_decorations(
