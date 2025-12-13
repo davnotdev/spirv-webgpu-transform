@@ -171,25 +171,25 @@ fn patch_spv_decorations(
                 *if let Some(idx) = cached_original_variable_idxs.get(&(set, binding)) {
                     idx
                 } else {
-                    let original_variable_id = op_decorate_idxs
-                        .iter()
-                        .find_map(|&d_idx| {
-                            let target_id = spv[d_idx + 1];
-                            let decoration_id = spv[d_idx + 2];
-                            let decoration_value = spv[d_idx + 3];
-                            (decoration_id == SPV_DECORATION_DESCRIPTOR_SET
-                                && decoration_value == set
-                                && op_decorate_idxs.iter().any(|&idx| {
-                                    let binding_target_id = spv[idx + 1];
-                                    let decoration_id = spv[idx + 2];
-                                    let decoration_value = spv[idx + 3];
-                                    decoration_id == SPV_DECORATION_BINDING
-                                        && decoration_value == binding
-                                        && target_id == binding_target_id
-                                }))
-                            .then_some(target_id)
-                        })
-                        .unwrap();
+                    let Some(original_variable_id) = op_decorate_idxs.iter().find_map(|&d_idx| {
+                        let target_id = spv[d_idx + 1];
+                        let decoration_id = spv[d_idx + 2];
+                        let decoration_value = spv[d_idx + 3];
+                        (decoration_id == SPV_DECORATION_DESCRIPTOR_SET
+                            && decoration_value == set
+                            && op_decorate_idxs.iter().any(|&idx| {
+                                let binding_target_id = spv[idx + 1];
+                                let decoration_id = spv[idx + 2];
+                                let decoration_value = spv[idx + 3];
+                                decoration_id == SPV_DECORATION_BINDING
+                                    && decoration_value == binding
+                                    && target_id == binding_target_id
+                            }))
+                        .then_some(target_id)
+                    }) else {
+                        // If there are no OpDecorates, no patching needs to be done.
+                        return Err(in_spv.to_vec());
+                    };
                     let idx = op_variable_idxs
                         .iter()
                         .find(|&idx| spv[idx + 2] == original_variable_id)
@@ -212,13 +212,18 @@ fn patch_spv_decorations(
             });
 
             // Convert into affected decoration
-            AffectedDecoration {
+            Ok(AffectedDecoration {
                 original_res_id: original_variable_id,
                 new_res_id,
                 correction_type,
-            }
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>();
+
+    let affected_decorations = match affected_decorations {
+        Ok(d) => d,
+        Err(spv) => return Ok(spv),
+    };
 
     // 3. Insert new OpDecorate
     let DecorateOut {
