@@ -16,7 +16,7 @@ pub fn get_function_from_parameter(spv: &[u32], function_parameter_idx: usize) -
         let word_count = hiword(op);
         let instruction = loword(op);
         match instruction {
-            SPV_INSTRUCTION_OP_FUNCTION_PARAMTER => {
+            SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => {
                 spv_idx -= word_count as usize;
                 param_idx += 1;
             }

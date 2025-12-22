@@ -27,6 +27,7 @@
 use std::collections::{HashMap, HashSet};
 
 mod correction;
+mod isnanisinfpatch;
 mod mirrorpatch;
 mod splitcombined;
 mod splitdref;

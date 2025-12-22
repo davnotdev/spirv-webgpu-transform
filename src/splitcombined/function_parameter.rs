@@ -53,7 +53,7 @@ pub fn function_parameter(fp_in: FunctionParameterIn) -> Vec<FunctionParameterOu
             instruction_inserts.push(InstructionInsert {
                 previous_spv_idx: fp_idx,
                 instruction: vec![
-                    encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_PARAMTER),
+                    encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_PARAMETER),
                     op_type_pointer_sampler_res_id,
                     sampler_parameter_res_id,
                 ],

@@ -128,7 +128,7 @@ pub fn drefsplitter(
             SPV_INSTRUCTION_OP_TYPE_FUNCTION => op_type_function_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_FUNCTION => op_function_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_FUNCTION_CALL => op_function_call_idxs.push(spv_idx),
-            SPV_INSTRUCTION_OP_FUNCTION_PARAMTER => op_function_parameter_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => op_function_parameter_idxs.push(spv_idx),
             _ => {}
         }
 
@@ -635,7 +635,7 @@ pub fn drefsplitter(
                                 instruction_inserts.push(InstructionInsert {
                                     previous_spv_idx: call.call_parameter.parameter_idx,
                                     instruction: vec![
-                                        encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_PARAMTER),
+                                        encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_PARAMETER),
                                         complement_tp_id,
                                         new_parameter_id,
                                     ],
