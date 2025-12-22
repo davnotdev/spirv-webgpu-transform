@@ -6,11 +6,11 @@ fn inc(ib: &mut u32) -> u32 {
 }
 
 // Someone should make a rust-spirv dsl macro
-mod isinf;
-mod isnan;
+mod isnan_isinf;
+mod shared;
 
-use isinf::*;
-use isnan::*;
+use isnan_isinf::*;
+use shared::*;
 
 pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();

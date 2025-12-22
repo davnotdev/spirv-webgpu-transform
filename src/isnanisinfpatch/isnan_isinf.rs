@@ -1,27 +1,18 @@
 use super::*;
 
-pub(super) struct NanSpvInputs {
-    bool_id: u32,
-    uint_id: u32,
-    double_id: u32,
-    ptr_function_float_id: u32,
-    ptr_function_uint_id: u32,
+pub(super) enum IsNanOrIsInf {
+    IsNan,
+    IsInf,
 }
 
-fn is_nan_spv(ib: &mut u32, inputs: NanSpvInputs) -> (u32, Box<[u32]>, Box<[u32]>) {
-    //  Required:
-    //      %bool
-    //      %uint
-    //      %double
-    //      %_ptr_Function_double
-    //      %_ptr_Function_uint
+pub(super) fn is_nan_is_inf_spv(
+    ib: &mut u32,
+    ty: IsNanOrIsInf,
+    inputs: NanInfSharedInputs,
+    shared_output: NanInfSharedOuputs,
+) -> (u32, Vec<u32>) {
+    // The only difference between the two is one OpIEqual vs OpINotEqual
     //
-    //    %_function_type = OpTypeFunction %bool %_ptr_Function_float
-    //           %uint_23 = OpConstant %uint 23
-    //          %uint_255 = OpConstant %uint 255
-    //      %uint_8388607 = OpConstant %uint 8388607
-    //            %uint_0 = OpConstant %uint 0
-    //          -----
     // %isnan_d1_ = OpFunction %bool None %_function_type
     //         %x = OpFunctionParameter %_ptr_Function_double
     //         %1 = OpLabel
@@ -45,12 +36,39 @@ fn is_nan_spv(ib: &mut u32, inputs: NanSpvInputs) -> (u32, Box<[u32]>, Box<[u32]
     //        %13 = OpLogicalAnd %bool %10 %12
     //              OpReturnValue %13
     //              OpFunctionEnd
+    //
+    // %_isinf_f1_ = OpFunction %bool None %function_type
+    //          %x = OpFunctionParameter %_ptr_Function_float
+    //          %1 = OpLabel
+    //       %bits = OpVariable %_ptr_Function_uint Function
+    //        %exp = OpVariable %_ptr_Function_uint Function
+    //       %frac = OpVariable %_ptr_Function_uint Function
+    //          %2 = OpLoad %float %x
+    //          %3 = OpBitcast %uint %2
+    //               OpStore %bits %3
+    //          %4 = OpLoad %uint %bits
+    //          %5 = OpShiftRightLogical %uint %4 %int_23
+    //          %6 = OpBitwiseAnd %uint %5 %uint_255
+    //               OpStore %exp %6
+    //          %7 = OpLoad %uint %bits
+    //          %8 = OpBitwiseAnd %uint %7 %uint_8388607
+    //               OpStore %frac %8
+    //          %9 = OpLoad %uint %exp
+    //         %10 = OpIEqual %bool %9 %uint_255
+    //         %11 = OpLoad %uint %frac
+    //         %12 = OpINotEqual %bool %11 %uint_0
+    //         %13 = OpLogicalAnd %bool %10 %12
+    //               OpReturnValue %13
+    //               OpFunctionEnd
+    //
 
-    let function_type = inc(ib);
-    let uint_23 = inc(ib);
-    let uint_255 = inc(ib);
-    let uint_8388607 = inc(ib);
-    let uint_0 = inc(ib);
+    let NanInfSharedOuputs {
+        function_type,
+        uint_23,
+        uint_255,
+        uint_8388607,
+        uint_0,
+    } = shared_output;
 
     let is_nan = inc(ib);
     let x = inc(ib);
@@ -72,20 +90,7 @@ fn is_nan_spv(ib: &mut u32, inputs: NanSpvInputs) -> (u32, Box<[u32]>, Box<[u32]
     let res_13 = inc(ib);
 
     #[rustfmt::skip]
-    let upper_spv = Box::new([
-        encode_word(4, SPV_INSTRUCTION_OP_TYPE_FUNCTION), 
-            function_type, inputs.bool_id, inputs.ptr_function_float_id,
-        encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_23, inputs.uint_id, 23,
-        encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_255, inputs.uint_id, 255,
-        encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_8388607, inputs.uint_id, 8388607,
-        encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_0, inputs.uint_id, 0,
-    ]);
-    #[rustfmt::skip]
-    let lower_spv = Box::new([
+    let spv = vec![
         encode_word(3, SPV_INSTRUCTION_OP_FUNCTION), 
             is_nan, function_type,
         encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_PARAMETER),
@@ -124,14 +129,19 @@ fn is_nan_spv(ib: &mut u32, inputs: NanSpvInputs) -> (u32, Box<[u32]>, Box<[u32]
             res_10, res_9, uint_255,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             res_11, frac, inputs.uint_id,
-        encode_word(4, SPV_INSTRUCTION_OP_I_EQUAL),
+        encode_word(4, 
+            match ty {
+                IsNanOrIsInf::IsNan => SPV_INSTRUCTION_OP_I_EQUAL,
+                IsNanOrIsInf::IsInf => SPV_INSTRUCTION_OP_I_NOT_EQUAL,
+            }
+            ),
             res_12, res_11, uint_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOGICAL_AND),
             res_13, res_10, res_12,
         encode_word(2, SPV_INSTRUCTION_OP_RETURN_VALUE),
             res_13,
         encode_word(1, SPV_INSTRUCTION_OP_FUNCTION_END),
-    ]);
+    ];
 
-    (is_nan, upper_spv, lower_spv)
+    (is_nan, spv)
 }
