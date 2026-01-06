@@ -65,13 +65,13 @@ pub(super) fn nan_inf_shared_constants(
     #[rustfmt::skip]
     let spv = vec![
         encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_23, inputs.uint_id, 23,
+            inputs.uint_id, uint_23, 23,
         encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_255, inputs.uint_id, 255,
+            inputs.uint_id, uint_255, 255,
         encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_8388607, inputs.uint_id, 8388607,
+            inputs.uint_id, uint_8388607, 8388607,
         encode_word(4, SPV_INSTRUCTION_OP_CONSTANT), 
-            uint_0, inputs.uint_id, 0,
+            inputs.uint_id, uint_0, 0,
     ];
 
     (

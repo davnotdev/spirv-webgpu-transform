@@ -4,7 +4,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 4 {
-        eprintln!("Usage: spv_webgpu_transform <combimg|dref> <input.spv> <output.spv>");
+        eprintln!("Usage: spv_webgpu_transform <combimg|dref|isnanisinf> <input.spv> <output.spv>");
         process::exit(1);
     }
 
@@ -24,6 +24,7 @@ fn main() {
             spirv_webgpu_transform::combimgsampsplitter(&spv, &mut out_correction_map).unwrap()
         }
         "dref" => spirv_webgpu_transform::drefsplitter(&spv, &mut out_correction_map).unwrap(),
+        "isnanisinf" => spirv_webgpu_transform::isnanisinfpatch(&spv).unwrap(),
         mode => {
             eprintln!("unknown mode {:?}", mode);
             process::exit(1)
@@ -52,6 +53,6 @@ fn main() {
             }
         }
     } else {
-        eprintln!("Finished, no patching done.");
+        eprintln!("Finished, no correction output map.");
     }
 }

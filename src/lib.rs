@@ -41,6 +41,7 @@ use spv::*;
 use util::*;
 
 pub use correction::*;
+pub use isnanisinfpatch::*;
 pub use mirrorpatch::*;
 pub use splitcombined::*;
 pub use splitdref::*;

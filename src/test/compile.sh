@@ -21,3 +21,5 @@ glslc mirrorpatch/test1.vert -o mirrorpatch/test1.vert.spv
 glslc mirrorpatch/test1.frag -o mirrorpatch/test1.frag.spv
 glslc mirrorpatch/test2.vert -o mirrorpatch/test2.vert.spv
 glslc mirrorpatch/test2.frag -o mirrorpatch/test2.frag.spv
+
+glslc isnanisinfpatch/isnanisinf.frag  -o isnanisinfpatch/isnanisinf.spv

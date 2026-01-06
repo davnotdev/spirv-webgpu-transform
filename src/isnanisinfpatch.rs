@@ -26,7 +26,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     assert_eq!(magic_number, SPV_HEADER_MAGIC);
 
     let mut instruction_inserts = vec![];
-    let mut word_inserts = vec![];
+    let word_inserts = vec![];
 
     let spv = spv.into_iter().skip(SPV_HEADER_LENGTH).collect::<Vec<_>>();
     let mut new_spv = spv.clone();
@@ -40,9 +40,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let mut op_type_bool_idxs = vec![];
     let mut op_type_int_idxs = vec![];
     let mut op_type_float_idxs = vec![];
-
-    let mut op_type_void_idx = None;
-    let mut first_op_variable = None;
+    let mut op_type_vector_idxs = vec![];
 
     let mut spv_idx = 0;
     while spv_idx < spv.len() {
@@ -51,7 +49,6 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         let instruction = loword(op);
 
         match instruction {
-            SPV_INSTRUCTION_OP_TYPE_VOID => op_type_void_idx = Some(spv_idx),
             SPV_INSTRUCTION_OP_FUNCTION => op_function_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_LOAD => op_load_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_POINTER => op_type_pointer_idxs.push(spv_idx),
@@ -60,38 +57,42 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             SPV_INSTRUCTION_OP_TYPE_BOOL => op_type_bool_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_INT => op_type_int_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_FLOAT => op_type_float_idxs.push(spv_idx),
-            SPV_INSTRUCTION_OP_VARIABLE => {
-                first_op_variable.get_or_insert(spv_idx);
-            }
+            SPV_INSTRUCTION_OP_TYPE_VECTOR => op_type_vector_idxs.push(spv_idx),
             _ => {}
         }
 
         spv_idx += word_count as usize;
     }
 
-    let op_type_void_idx = op_type_void_idx.expect("Surely an OpTypeVoid is present!");
-
     if op_is_nan_idxs.is_empty() && op_is_inf_idxs.is_empty() {
         return Ok(in_spv.to_vec());
     }
+    let Some(last_op_type_pointer) = op_type_pointer_idxs.last() else {
+        return Ok(in_spv.to_vec());
+    };
+    let last_op_type_pointer = *last_op_type_pointer;
 
     // 2. Useful closures
     let get_float_type_width = |id| {
-        op_type_int_idxs
+        op_type_float_idxs
             .iter()
             .find_map(|idx| (spv[idx + 1] == id).then_some(spv[idx + 2]))
     };
 
-    let is_bool_vectored = |id| {
-        // If id is not a bool, then it is a vector type
-        !op_type_bool_idxs.iter().any(|idx| spv[idx + 1] == id)
+    let get_underlying_vector_type = |id| {
+        op_type_vector_idxs.iter().find_map(|idx| {
+            let result_id = spv[idx + 1];
+            let component_type = spv[idx + 2];
+            let component_count = spv[idx + 3];
+
+            (result_id == id).then_some((component_type, component_count as usize))
+        })
     };
 
     // 3. Insert shared uint definitions and shared constants
     // Since there are only two main float widths, we will include both for simplicity
     let mut header_insert = InstructionInsert {
-        // A stable place to insert these is at the first OpTypeVoid
-        previous_spv_idx: op_type_void_idx,
+        previous_spv_idx: last_op_type_pointer,
         instruction: vec![],
     };
 
@@ -135,38 +136,41 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         }
     };
 
+    // NOTE: 64-bit isnan and isinf doesn't actually make much sense, so I will just leave it.
+    // In standard glsl, you cannot write that kind of substitution because there is no `uint64_t` nor `doubleBitsToUint`.
+
     let uint32_id = ensure_type_int(&mut header_insert.instruction, &mut instruction_bound, 32);
-    let uint64_id = ensure_type_int(&mut header_insert.instruction, &mut instruction_bound, 64);
     let uint32_ptr_id = ensure_type_ptr(
         &mut header_insert.instruction,
         &mut instruction_bound,
         uint32_id,
     );
-    let uint64_ptr_id = ensure_type_ptr(
-        &mut header_insert.instruction,
-        &mut instruction_bound,
-        uint64_id,
-    );
-
     let shared_type_inputs_32 = NanInfSharedTypeInputs {
         uint_id: uint32_id,
         ptr_uint_id: uint32_ptr_id,
     };
-    let shared_type_inputs_64 = NanInfSharedTypeInputs {
-        uint_id: uint64_id,
-        ptr_uint_id: uint64_ptr_id,
-    };
+
+    // let uint64_id = ensure_type_int(&mut header_insert.instruction, &mut instruction_bound, 64);
+    // let uint64_ptr_id = ensure_type_ptr(
+    //     &mut header_insert.instruction,
+    //     &mut instruction_bound,
+    //     uint64_id,
+    // );
+    // let shared_type_inputs_64 = NanInfSharedTypeInputs {
+    //     uint_id: uint64_id,
+    //     ptr_uint_id: uint64_ptr_id,
+    // };
 
     let (shared_constants_32, mut constants_spv_32) =
         nan_inf_shared_constants(&mut instruction_bound, shared_type_inputs_32);
-    let (shared_constants_64, mut constants_spv_64) =
-        nan_inf_shared_constants(&mut instruction_bound, shared_type_inputs_64);
     header_insert.instruction.append(&mut constants_spv_32);
-    header_insert.instruction.append(&mut constants_spv_64);
+    // let (shared_constants_64, mut constants_spv_64) =
+    //     nan_inf_shared_constants(&mut instruction_bound, shared_type_inputs_64);
+    // header_insert.instruction.append(&mut constants_spv_64);
 
     // 4. Insert shared isnan / isinf declaration and definitions
     let mut desc_to_idx: HashMap<_, Vec<usize>> = HashMap::new();
-    let fn_set = op_is_nan_idxs
+    let fn_set: HashSet<(IsNanOrIsInf, NanInfSharedFunctionInputs, Option<usize>)> = op_is_nan_idxs
         .iter()
         .map(|v| (IsNanOrIsInf::IsNan, v))
         .chain(op_is_inf_idxs.iter().map(|v| (IsNanOrIsInf::IsInf, v)))
@@ -181,6 +185,10 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                 .expect("OpIsNan/Inf not accompanied by OpLoad?");
 
             let float_ty_id = spv[load_idx + 1];
+            let (underlying_float_ty_id, float_component_count) =
+                get_underlying_vector_type(float_ty_id)
+                    .map(|(a, b)| (a, Some(b)))
+                    .unwrap_or((float_ty_id, None));
             let pointer_float_ty_id = op_type_pointer_idxs
                 .iter()
                 .find_map(|&tp_idx| {
@@ -190,21 +198,26 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                     (underlying_type_id == float_ty_id).then_some(result_id)
                 })
                 .expect("Loaded float/double while missing pointer type?");
-            // TODO: underlying type of vector
             let bool_ty_id = spv[op_idx + 1];
+            let (underlying_bool_ty_id, bool_component_count) =
+                get_underlying_vector_type(bool_ty_id)
+                    .map(|(a, b)| (a, Some(b)))
+                    .unwrap_or((float_ty_id, None));
+            assert!(bool_component_count == float_component_count);
 
             let ret = (
                 ty,
                 NanInfSharedFunctionInputs {
-                    bool_id: bool_ty_id,
-                    float_id: float_ty_id,
+                    bool_id: underlying_bool_ty_id,
+                    float_id: underlying_float_ty_id,
                     ptr_float_id: pointer_float_ty_id,
                 },
+                bool_component_count,
             );
             desc_to_idx.entry(ret).or_default().push(*op_idx);
             ret
         })
-        .collect::<HashMap<_, _>>();
+        .collect::<HashSet<_, _>>();
 
     let mut function_definition_words = vec![];
 
@@ -214,14 +227,14 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         bool_component_count: Option<usize>,
     }
     let mut patch_map: HashMap<usize, PatchEntry> = HashMap::new();
-    for (ty, input) in fn_set {
+    for (ty, input, component_count) in fn_set {
         let (fn_type, mut spv) = nan_inf_fn_type(&mut instruction_bound, input);
         header_insert.instruction.append(&mut spv);
 
         let (selected_type_inputs, selected_constants) =
             match get_float_type_width(input.float_id).expect("Our OpTypeFloat dispeared?") {
                 32 => (shared_type_inputs_32, shared_constants_32),
-                64 => (shared_type_inputs_64, shared_constants_64),
+                // 64 => (shared_type_inputs_64, shared_constants_64),
                 n => panic!(
                     "Float width {} not supported for isnan/isinf substitution",
                     n
@@ -238,7 +251,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         );
         function_definition_words.append(&mut spv);
 
-        let key = (ty, input);
+        let key = (ty, input, component_count);
         for op_idx in &desc_to_idx[&key] {
             patch_map.insert(
                 *op_idx,
@@ -254,7 +267,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
 
     // 5. Insert additional temp variables and indexing constants for vectored cases
     let mut post_variable_instructions = InstructionInsert {
-        previous_spv_idx: first_op_variable.expect("No OpVariable's exist up to this point?"),
+        previous_spv_idx: last_op_type_pointer,
         instruction: vec![],
     };
 
