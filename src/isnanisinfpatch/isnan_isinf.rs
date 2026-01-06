@@ -1,25 +1,22 @@
 use super::*;
 
-pub(super) enum IsNanOrIsInf {
-    IsNan,
-    IsInf,
-}
-
 pub(super) fn is_nan_is_inf_spv(
     ib: &mut u32,
     ty: IsNanOrIsInf,
-    inputs: NanInfSharedInputs,
-    shared_output: NanInfSharedOuputs,
+    ty_inputs: NanInfSharedTypeInputs,
+    inputs: NanInfSharedFunctionInputs,
+    function_type: NanInfFunctionType,
+    shared_constants: NanInfSharedConstants,
 ) -> (u32, Vec<u32>) {
     // The only difference between the two is one OpIEqual vs OpINotEqual
     //
-    // %isnan_d1_ = OpFunction %bool None %_function_type
-    //         %x = OpFunctionParameter %_ptr_Function_double
+    // %isnan_f1_ = OpFunction %bool None %_function_type
+    //         %x = OpFunctionParameter %_ptr_Function_float
     //         %1 = OpLabel
     //      %bits = OpVariable %_ptr_Function_uint Function
     //       %exp = OpVariable %_ptr_Function_uint Function
     //      %frac = OpVariable %_ptr_Function_uint Function
-    //         %2 = OpLoad %double %x
+    //         %2 = OpLoad %float %x
     //         %3 = OpBitcast %uint %2
     //              OpStore %bits %3
     //         %4 = OpLoad %uint %bits
@@ -62,13 +59,24 @@ pub(super) fn is_nan_is_inf_spv(
     //               OpFunctionEnd
     //
 
-    let NanInfSharedOuputs {
-        function_type,
+    let function_type = function_type.0;
+    let NanInfSharedConstants {
         uint_23,
         uint_255,
         uint_8388607,
         uint_0,
-    } = shared_output;
+    } = shared_constants;
+
+    let NanInfSharedTypeInputs {
+        uint_id,
+        ptr_uint_id,
+    } = ty_inputs;
+
+    let NanInfSharedFunctionInputs {
+        bool_id,
+        float_id,
+        ptr_float_id,
+    } = inputs;
 
     let is_nan = inc(ib);
     let x = inc(ib);
@@ -91,26 +99,26 @@ pub(super) fn is_nan_is_inf_spv(
 
     #[rustfmt::skip]
     let spv = vec![
-        encode_word(3, SPV_INSTRUCTION_OP_FUNCTION), 
-            is_nan, function_type,
+        encode_word(5, SPV_INSTRUCTION_OP_FUNCTION), 
+            bool_id, is_nan, SPV_FUNCTION_CONTROL_INLINE, function_type, 
         encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_PARAMETER),
-            x, inputs.ptr_function_float_id,
+            x, ptr_float_id,
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             res_1,
         encode_word(3, SPV_INSTRUCTION_OP_VARIABLE),
-            bits, inputs.ptr_function_uint_id,
+            bits, ptr_uint_id,
         encode_word(3, SPV_INSTRUCTION_OP_VARIABLE),
-            exp, inputs.ptr_function_uint_id,
+            exp, ptr_uint_id,
         encode_word(3, SPV_INSTRUCTION_OP_VARIABLE),
-            frac, inputs.ptr_function_uint_id,
+            frac, ptr_uint_id,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-            res_2, x, inputs.double_id,
+            res_2, x, float_id,
         encode_word(4, SPV_INSTRUCTION_OP_BITCAST),
-            res_3, res_2, inputs.uint_id,
+            res_3, res_2, uint_id,
         encode_word(3, SPV_INSTRUCTION_OP_STORE),
             bits, res_3,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-            res_4, bits, inputs.uint_id,
+            res_4, bits, uint_id,
         encode_word(4, SPV_INSTRUCTION_OP_SHIFT_RIGHT_LOGICAL),
             res_5, res_4, uint_23,
         encode_word(4, SPV_INSTRUCTION_OP_BITWISE_AND),
@@ -118,17 +126,17 @@ pub(super) fn is_nan_is_inf_spv(
         encode_word(3, SPV_INSTRUCTION_OP_STORE),
             exp, res_6,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-            res_7, bits, inputs.uint_id,
+            res_7, bits, uint_id,
         encode_word(4, SPV_INSTRUCTION_OP_BITWISE_AND),
             res_8, res_7, uint_8388607,
         encode_word(3, SPV_INSTRUCTION_OP_STORE),
             frac, res_8,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-            res_9, exp, inputs.uint_id,
+            res_9, exp, uint_id,
         encode_word(4, SPV_INSTRUCTION_OP_I_EQUAL),
             res_10, res_9, uint_255,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-            res_11, frac, inputs.uint_id,
+            res_11, frac, uint_id,
         encode_word(4, 
             match ty {
                 IsNanOrIsInf::IsNan => SPV_INSTRUCTION_OP_I_EQUAL,
