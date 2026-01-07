@@ -8,6 +8,7 @@
 //! | ------------------------- | ----------- | ------ | ------ |
 //! | Combined Image Samplers   | ✅          | ✅     | ✅     |
 //! | Mixed Depth / Comparison  | ✅          | ⚠️\*   | ❌     |
+//! | isnan / isinf Patching    | ✅          | ✅     | ✅     |
 //!
 //! > \* Simple cases are OK.
 //! > With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.

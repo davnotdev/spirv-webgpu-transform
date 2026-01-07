@@ -17,6 +17,7 @@ At the moment, the following transformations are supported:
 | ------------------------- | ----------- | ------ | ------ |
 | Combined Image Samplers   | ✅          | ✅     | ✅     |
 | Mixed Depth / Comparison  | ✅          | ⚠️\*   | ❌     |
+| isnan / isinf Patching    | ✅          | ✅     | ✅     |
 | Push Constants (WIP)      | ❌          | ❌     | ❌     |
 
 > \* Simple cases are OK.
@@ -96,16 +97,34 @@ void main() {
 | `test_image.frag`                 | ✅          | ✅     | ✅   |
 | `test_wrong_type_image.spvasm`    | ✅          | ✅     | ✅   |
 | `test_sampler.frag`               | ✅          | ✅     | ✅   |
-| `test_mixed_dref.frag`            | ✅          | ❌\*    | ❌   |
-| `test_nested_sampler.frag`        | ✅          | ❌\*    | ❌   |
-| `test_nested2_sampler.frag`       | ✅          | ❌\*    | ❌   |
-| `test_nested_image.frag`          | ✅          | ❌\*    | ❌   |
-| `test_nested2_image.frag`         | ✅          | ❌\*    | ❌   |
-| `test_hidden_dref.frag`           | ✅          | ❌\*    | ❌   |
-| `test_hidden2_dref.frag`          | ✅          | ❌\*    | ❌   |
-| `test_hidden3_dref.frag`          | ❌          | ❌      | ❌   |
+| `test_mixed_dref.frag`            | ✅          | ❌\*   | ❌   |
+| `test_nested_sampler.frag`        | ✅          | ❌\*   | ❌   |
+| `test_nested2_sampler.frag`       | ✅          | ❌\*   | ❌   |
+| `test_nested_image.frag`          | ✅          | ❌\*   | ❌   |
+| `test_nested2_image.frag`         | ✅          | ❌\*   | ❌   |
+| `test_hidden_dref.frag`           | ✅          | ❌\*   | ❌   |
+| `test_hidden2_dref.frag`          | ✅          | ❌\*   | ❌   |
+| `test_hidden3_dref.frag`          | ❌          | ❌     | ❌   |
 
 > \* With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
+
+## `isnan` / `isinf` Patching
+
+WGSL does not have a mapping for the `isnan` and `isinf` functions from GLSL.
+This transformation replaces all `isnan` and `isinf` functions with an IEEE-754 appropriate implementation.
+Support also includes vector types (`vecN` input and `bvecN` output).
+
+### Tests
+
+| Test                        | `spirv-val` | Naga   | Tint |
+| --------------------------- | ----------- | ------ | ---- |
+| `isnanisinf.frag`           | ✅          | ✅     | ✅   |
+| `isnanisinf_vectored.frag`  | ✅          | ✅     | ✅   |
+| `isnanisinf_immediate.frag` | ✅          | ✅     | ✅   |
+
+### Additional Notes
+
+- Only 32-bit floats are supported, other bit widths are not supported 
 
 ## Push Constants
 
