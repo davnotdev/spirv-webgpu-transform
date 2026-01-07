@@ -3,10 +3,12 @@ use super::*;
 mod correct_decorate;
 mod decorate;
 mod function;
+mod pointer;
 
 pub use correct_decorate::*;
 pub use decorate::*;
 pub use function::*;
+pub use pointer::*;
 
 pub fn hiword(value: u32) -> u16 {
     ((value >> 16) & 0xFFFF) as u16

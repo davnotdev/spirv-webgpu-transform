@@ -174,64 +174,82 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let mut fn_type_defs = HashMap::new();
 
     let mut desc_to_idx: HashMap<_, Vec<usize>> = HashMap::new();
-    let fn_set: HashSet<(IsNanOrIsInf, NanInfSharedFunctionInputs, Option<usize>)> = op_is_nan_idxs
-        .iter()
-        .map(|v| (IsNanOrIsInf::IsNan, v))
-        .chain(op_is_inf_idxs.iter().map(|v| (IsNanOrIsInf::IsInf, v)))
-        .map(|(ty, op_idx)| {
-            let input_id = spv[op_idx + 3];
-            let load_idx = op_load_idxs
-                .iter()
-                .find(|&load_idx| {
-                    let load_result_id = spv[load_idx + 2];
-                    load_result_id == input_id
-                })
-                .expect("OpIsNan/Inf not accompanied by OpLoad?");
+    let fn_set: HashSet<(IsNanOrIsInf, NanInfSharedFunctionInputs, u32, Option<usize>)> =
+        op_is_nan_idxs
+            .iter()
+            .map(|v| (IsNanOrIsInf::IsNan, v))
+            .chain(op_is_inf_idxs.iter().map(|v| (IsNanOrIsInf::IsInf, v)))
+            .map(|(ty, op_idx)| {
+                let input_id = spv[op_idx + 3];
 
-            let float_ty_id = spv[load_idx + 1];
-            let (underlying_float_ty_id, float_component_count) =
-                get_underlying_vector_type(float_ty_id)
-                    .map(|(a, b)| (a, Some(b)))
-                    .unwrap_or((float_ty_id, None));
-            let pointer_float_ty_id = op_type_pointer_idxs
-                .iter()
-                .find_map(|&tp_idx| {
-                    let result_id = spv[tp_idx + 1];
-                    let underlying_type_id = spv[tp_idx + 3];
+                // We actually cannot rely on loads to get the types of immediate values
+                // let load_idx = op_load_idxs
+                //     .iter()
+                //     .find(|&load_idx| {
+                //         let load_result_id = spv[load_idx + 2];
+                //         load_result_id == input_id
+                //     })
+                //     .expect("OpIsNan/Inf not accompanied by OpLoad?");
+                // let float_ty_id = spv[load_idx + 1];
 
-                    (underlying_type_id == float_ty_id).then_some(result_id)
-                })
-                .expect("Loaded float/double while missing pointer type?");
-            let bool_ty_id = spv[op_idx + 1];
-            let (underlying_bool_ty_id, bool_component_count) =
-                get_underlying_vector_type(bool_ty_id)
-                    .map(|(a, b)| (a, Some(b)))
-                    .unwrap_or((bool_ty_id, None));
-            assert!(bool_component_count == float_component_count);
+                let float_ty_id = trace_previous_intermediate_id(&spv, input_id, *op_idx)
+                    .expect("OpIsNan/Inf has operates on nothing?");
+                let original_float_type_id = float_ty_id;
+                let (underlying_float_ty_id, float_component_count) =
+                    get_underlying_vector_type(float_ty_id)
+                        .map(|(a, b)| (a, Some(b)))
+                        .unwrap_or((float_ty_id, None));
+                let pointer_float_ty_id = op_type_pointer_idxs
+                    .iter()
+                    .find_map(|&tp_idx| {
+                        let result_id = spv[tp_idx + 1];
+                        let underlying_type_id = spv[tp_idx + 3];
 
-            let ret = (
-                ty,
-                NanInfSharedFunctionInputs {
-                    bool_id: underlying_bool_ty_id,
-                    float_id: underlying_float_ty_id,
-                    ptr_float_id: pointer_float_ty_id,
-                },
-                bool_component_count,
-            );
-            desc_to_idx.entry(ret).or_default().push(*op_idx);
-            ret
-        })
-        .collect::<HashSet<_, _>>();
+                        (underlying_type_id == underlying_float_ty_id).then_some(result_id)
+                    })
+                    .unwrap_or_else(|| {
+                        let new_id = instruction_bound;
+                        instruction_bound += 1;
+                        header_insert.instruction.append(&mut vec![
+                            encode_word(4, SPV_INSTRUCTION_OP_TYPE_POINTER),
+                            new_id,
+                            SPV_STORAGE_CLASS_FUNCTION,
+                            underlying_float_ty_id,
+                        ]);
+                        new_id
+                    });
+                let bool_ty_id = spv[op_idx + 1];
+                let (underlying_bool_ty_id, bool_component_count) =
+                    get_underlying_vector_type(bool_ty_id)
+                        .map(|(a, b)| (a, Some(b)))
+                        .unwrap_or((bool_ty_id, None));
+                assert!(bool_component_count == float_component_count);
+
+                let ret = (
+                    ty,
+                    NanInfSharedFunctionInputs {
+                        bool_id: underlying_bool_ty_id,
+                        float_id: underlying_float_ty_id,
+                        ptr_float_id: pointer_float_ty_id,
+                    },
+                    original_float_type_id,
+                    bool_component_count,
+                );
+                desc_to_idx.entry(ret).or_default().push(*op_idx);
+                ret
+            })
+            .collect::<HashSet<_, _>>();
 
     let mut function_definition_words = vec![];
 
     struct PatchEntry {
         fn_id: u32,
         input: NanInfSharedFunctionInputs,
+        original_float_type_id: u32,
         bool_component_count: Option<usize>,
     }
     let mut patch_map: HashMap<usize, PatchEntry> = HashMap::new();
-    for (ty, input, component_count) in fn_set {
+    for (ty, input, original_float_type_id, component_count) in fn_set {
         let (fn_type, mut spv) = nan_inf_fn_type(&mut instruction_bound, input);
         let fn_type = if let Some(existing_fn_type) = fn_type_defs.get(&input).copied() {
             existing_fn_type
@@ -261,13 +279,14 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         );
         function_definition_words.append(&mut spv);
 
-        let key = (ty, input, component_count);
+        let key = (ty, input, original_float_type_id, component_count);
         for op_idx in &desc_to_idx[&key] {
             patch_map.insert(
                 *op_idx,
                 PatchEntry {
                     fn_id,
                     input,
+                    original_float_type_id,
                     bool_component_count: component_count,
                 },
             );
@@ -285,7 +304,9 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let mut max_components_map = HashMap::new();
     for entry in patch_map.values() {
         if let Some(n) = entry.bool_component_count {
-            let v = max_components_map.entry(entry.input.float_id).or_insert(n);
+            let v = max_components_map
+                .entry(entry.input.ptr_float_id)
+                .or_insert(n);
             if n > *v {
                 *v = n;
             }
@@ -312,12 +333,6 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
 
     instruction_inserts.push(indexing_constant_instructions);
 
-    // We will need to know all unique float pointer ids for our non-vectored temp variables
-    let unique_float_ids = patch_map
-        .values()
-        .map(|entry| entry.input.ptr_float_id)
-        .collect::<HashSet<_>>();
-
     // 6. Insert and patch isnan / isinf usage
     for &op_idx in op_is_nan_idxs.iter().chain(op_is_inf_idxs.iter()) {
         let result_type_id = spv[op_idx + 1];
@@ -326,6 +341,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         let PatchEntry {
             fn_id,
             input,
+            original_float_type_id,
             bool_component_count,
         } = patch_map[&op_idx];
 
@@ -344,26 +360,36 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                 previous_spv_idx: get_function_label_index_of_instruction_index(&spv, op_idx),
                 instruction: vec![],
             };
-            // We need temp variables for vectored destructuring
-            let vectored_param_ids = max_components_map
+            // We need a temp variable for the vector itself
+            let float_vector_type_pointer_id = op_type_pointer_idxs
                 .iter()
-                .map(|(&float_id, &n)| {
-                    let params = (0..n)
-                        .map(|_| {
-                            let param_id = instruction_bound;
-                            instruction_bound += 1;
-                            temp_variable_instructions.instruction.append(&mut vec![
-                                encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
-                                float_id,
-                                param_id,
-                                SPV_STORAGE_CLASS_FUNCTION,
-                            ]);
-                            param_id
-                        })
-                        .collect::<Vec<u32>>();
-                    (float_id, params)
+                .find_map(|idx| (spv[idx + 3] == original_float_type_id).then_some(spv[idx + 1]))
+                .expect("This vector type has no type pointer?");
+            let temp_vector_id = instruction_bound;
+            instruction_bound += 1;
+            temp_variable_instructions.instruction.append(&mut vec![
+                encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
+                float_vector_type_pointer_id,
+                temp_vector_id,
+                SPV_STORAGE_CLASS_FUNCTION,
+            ]);
+
+            // We need temp variables for vectored destructuring
+            let max_components = max_components_map[&input.ptr_float_id];
+            let params = (0..max_components)
+                .map(|_| {
+                    let param_id = instruction_bound;
+                    instruction_bound += 1;
+                    temp_variable_instructions.instruction.append(&mut vec![
+                        encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
+                        input.ptr_float_id,
+                        param_id,
+                        SPV_STORAGE_CLASS_FUNCTION,
+                    ]);
+                    param_id
                 })
-                .collect::<HashMap<_, _>>();
+                .collect::<Vec<u32>>();
+
             instruction_inserts.push(temp_variable_instructions);
 
             let mut component_results = (0..component_count)
@@ -375,23 +401,26 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                     let fn_result_id = instruction_bound;
                     instruction_bound += 1;
                     new_instructions.instruction.append(&mut vec![
+                        encode_word(3, SPV_INSTRUCTION_OP_STORE),
+                        temp_vector_id,
+                        x,
                         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
                         input.ptr_float_id,
                         accessed_id,
-                        x,
+                        temp_vector_id,
                         index_ids[n],
                         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
                         input.float_id,
                         loaded_id,
                         accessed_id,
                         encode_word(3, SPV_INSTRUCTION_OP_STORE),
-                        vectored_param_ids[&input.float_id][n],
+                        params[n],
                         loaded_id,
                         encode_word(5, SPV_INSTRUCTION_OP_FUNCTION_CALL),
                         input.bool_id,
-                        result_id,
+                        fn_result_id,
                         fn_id,
-                        vectored_param_ids[&input.float_id][n],
+                        params[n],
                     ]);
                     fn_result_id
                 })
@@ -414,33 +443,27 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                 instruction: vec![],
             };
             // We need one (per float type) temp variable for the non-vectored case
-            let param_ids = unique_float_ids
-                .iter()
-                .map(|&ptr_float_id| {
-                    let param_id = instruction_bound;
-                    instruction_bound += 1;
-                    temp_variable_instructions.instruction.append(&mut vec![
-                        encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
-                        ptr_float_id,
-                        param_id,
-                        SPV_STORAGE_CLASS_FUNCTION,
-                    ]);
-                    (ptr_float_id, param_id)
-                })
-                .collect::<HashMap<_, _>>();
+            let param_id = instruction_bound;
+            instruction_bound += 1;
+            temp_variable_instructions.instruction.append(&mut vec![
+                encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
+                input.ptr_float_id,
+                param_id,
+                SPV_STORAGE_CLASS_FUNCTION,
+            ]);
             instruction_inserts.push(temp_variable_instructions);
 
             let new_instructions = InstructionInsert {
                 previous_spv_idx: op_idx,
                 instruction: vec![
                     encode_word(3, SPV_INSTRUCTION_OP_STORE),
-                    param_ids[&input.ptr_float_id],
+                    param_id,
                     x,
                     encode_word(5, SPV_INSTRUCTION_OP_FUNCTION_CALL),
                     result_type_id,
                     result_id,
                     fn_id,
-                    param_ids[&input.ptr_float_id],
+                    param_id,
                 ],
             };
             instruction_inserts.push(new_instructions);
@@ -448,7 +471,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     }
 
     // 7. Insert New Instructions
-    instruction_inserts.push(header_insert);
+    instruction_inserts.insert(0, header_insert);
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);
     new_spv.append(&mut function_definition_words);
 

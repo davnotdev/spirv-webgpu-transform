@@ -167,3 +167,9 @@ test_with_spv_and_fn_no_correction![
     "./test/isnanisinfpatch/isnanisinf_vectored.spv",
     isnanisinfpatch
 ];
+test_with_spv_and_fn_no_correction![
+    isnanisinfpatch_isnanisinf_immediate,
+    DO_ALL,
+    "./test/isnanisinfpatch/isnanisinf_immediate.spv",
+    isnanisinfpatch
+];

@@ -24,3 +24,4 @@ glslc mirrorpatch/test2.frag -o mirrorpatch/test2.frag.spv
 
 glslc isnanisinfpatch/isnanisinf.frag  -o isnanisinfpatch/isnanisinf.spv
 glslc isnanisinfpatch/isnanisinf_vectored.frag  -o isnanisinfpatch/isnanisinf_vectored.spv
+glslc isnanisinfpatch/isnanisinf_immediate.frag  -o isnanisinfpatch/isnanisinf_immediate.spv
