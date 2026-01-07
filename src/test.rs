@@ -1,5 +1,6 @@
 use super::{
-    combimgsampsplitter, drefsplitter, mirrorpatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
+    combimgsampsplitter, drefsplitter, isnanisinfpatch, mirrorpatch, u8_slice_to_u32_vec,
+    u32_slice_to_u8_vec,
 };
 
 use naga::{back, front, valid};
@@ -20,6 +21,19 @@ macro_rules! test_with_spv_and_fn {
             let spv = include_bytes!($SPV);
             let spv = u8_slice_to_u32_vec(spv);
             let out_spv = $FN(&spv, &mut None).unwrap();
+            try_spv_to_wgsl(&out_spv, $FLAGS);
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! test_with_spv_and_fn_no_correction {
+    ($NAME:ident, $FLAGS: expr, $SPV:expr, $FN:expr) => {
+        #[test]
+        fn $NAME() {
+            let spv = include_bytes!($SPV);
+            let spv = u8_slice_to_u32_vec(spv);
+            let out_spv = $FN(&spv).unwrap();
             try_spv_to_wgsl(&out_spv, $FLAGS);
         }
     };
@@ -75,6 +89,8 @@ test_with_spv_and_fn!(
     "./test/splitcombined/test_mixed.spv",
     combimgsampsplitter
 );
+
+// ---
 
 test_with_spv_and_fn!(
     splitdref_test_wrong_type_image,
@@ -136,3 +152,18 @@ test_with_spv_and_fn!(
     "./test/splitdref/test_hidden3_dref.spv",
     drefsplitter
 );
+
+// ---
+
+test_with_spv_and_fn_no_correction![
+    isnanisinfpatch_isnanisinf,
+    DO_ALL,
+    "./test/isnanisinfpatch/isnanisinf.spv",
+    isnanisinfpatch
+];
+test_with_spv_and_fn_no_correction![
+    isnanisinfpatch_isnanisinf_vectored,
+    DO_ALL,
+    "./test/isnanisinfpatch/isnanisinf_vectored.spv",
+    isnanisinfpatch
+];

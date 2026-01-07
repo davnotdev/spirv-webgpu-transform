@@ -61,6 +61,24 @@ pub fn get_function_index_of_instruction_index(spv: &[u32], instruction_idx: usi
     last_function_idx
 }
 
+// Get the start of function, this is useful for creating new local variables
+pub fn get_function_label_index_of_instruction_index(spv: &[u32], instruction_idx: usize) -> usize {
+    let mut spv_idx = get_function_index_of_instruction_index(spv, instruction_idx);
+    while spv_idx < instruction_idx {
+        let op = spv[spv_idx];
+        let word_count = hiword(op);
+        let instruction = loword(op);
+
+        if instruction == SPV_INSTRUCTION_OP_LABEL {
+            return spv_idx;
+        }
+
+        spv_idx += word_count as usize
+    }
+
+    panic!("OpFunction is corresponding missing OpLabel")
+}
+
 // Trace a function backwards to a OpVariable, return variables and dependent function calls
 pub struct TraceFunctionArgumentToVariablesIn<'a> {
     pub spv: &'a [u32],
