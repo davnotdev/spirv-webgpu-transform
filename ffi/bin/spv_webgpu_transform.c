@@ -18,7 +18,7 @@ int main() {
     fclose(file);
     
     // 2. Run the transformations
-    TransformCorrectionMap correction_map = SPIRV_WEBGPU_TRANFORM_CORRECTION_MAP_NULL;
+    TransformCorrectionMap correction_map = SPIRV_WEBGPU_TRANSFORM_CORRECTION_MAP_NULL;
 
     uint32_t* comb_out_spv;
     uint32_t comb_out_count;
@@ -27,6 +27,10 @@ int main() {
     uint32_t* dref_out_spv;
     uint32_t dref_out_count;
     spirv_webgpu_transform_drefsplitter_alloc(comb_out_spv, comb_out_count, &dref_out_spv, &dref_out_count, &correction_map);
+
+    uint32_t* isnanisinf_out_spv;
+    uint32_t isnanisinf_out_count;
+    spirv_webgpu_transform_isnanisinfpatch_alloc(dref_out_spv, dref_out_count, &isnanisinf_out_spv, &isnanisinf_out_count);
 
     // 3. Observe the patched variables
     print_set_binding(correction_map, 0, 0);
@@ -38,6 +42,7 @@ int main() {
     print_set_binding(correction_map, 2, 0);
 
     // 4. Free memory
+    spirv_webgpu_transform_isnanisinfpatch_free(isnanisinf_out_spv);
     spirv_webgpu_transform_drefsplitter_free(dref_out_spv);
     spirv_webgpu_transform_combimgsampsplitter_free(comb_out_spv);
     spirv_webgpu_transform_correction_map_free(correction_map);
