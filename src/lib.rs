@@ -33,6 +33,7 @@ mod mirrorpatch;
 mod splitcombined;
 mod splitdref;
 mod spv;
+mod storagecubepatch;
 mod util;
 
 #[cfg(test)]
