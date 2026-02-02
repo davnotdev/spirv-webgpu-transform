@@ -18,7 +18,6 @@ At the moment, the following transformations are supported:
 | Combined Image Samplers   | ✅          | ✅     | ✅     |
 | Mixed Depth / Comparison  | ✅          | ⚠️\*   | ❌     |
 | isnan / isinf Patching    | ✅          | ✅     | ✅     |
-| Push Constants (WIP)      | ❌          | ❌     | ❌     |
 
 > \* Simple cases are OK.
 > With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
@@ -125,10 +124,6 @@ Support also includes vector types (`vecN` input and `bvecN` output).
 ### Additional Notes
 
 - Only 32-bit floats are supported, other bit widths are not supported 
-
-## Push Constants
-
-> Coming Soon (if the WebGPU spec doesn't move fast enough)
 
 ## Library Usage
 
