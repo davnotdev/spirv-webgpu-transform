@@ -226,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "spirv-webgpu-transform"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "naga",
  "spirv-tools",
