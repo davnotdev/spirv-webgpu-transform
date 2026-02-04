@@ -162,7 +162,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     // };
 
     let (shared_constants_32, mut constants_spv_32) =
-        nan_inf_shared_constants(&mut instruction_bound, shared_type_inputs_32);
+        nan_inf_shared_constants_spv(&mut instruction_bound, shared_type_inputs_32);
     header_insert.instruction.append(&mut constants_spv_32);
     // let (shared_constants_64, mut constants_spv_64) =
     //     nan_inf_shared_constants(&mut instruction_bound, shared_type_inputs_64);
@@ -252,7 +252,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     }
     let mut patch_map: HashMap<usize, PatchEntry> = HashMap::new();
     for (ty, input, original_float_type_id, component_count) in fn_set {
-        let (fn_type, mut spv) = nan_inf_fn_type(&mut instruction_bound, input);
+        let (fn_type, mut spv) = nan_inf_fn_type_spv(&mut instruction_bound, input);
         let fn_type = if let Some(existing_fn_type) = fn_type_defs.get(&input).copied() {
             existing_fn_type
         } else {

@@ -30,7 +30,7 @@ pub(super) struct NanInfSharedConstants {
     pub uint_0: u32,
 }
 
-pub(super) fn nan_inf_fn_type(
+pub(super) fn nan_inf_fn_type_spv(
     ib: &mut u32,
     inputs: NanInfSharedFunctionInputs,
 ) -> (NanInfFunctionType, Vec<u32>) {
@@ -47,7 +47,7 @@ pub(super) fn nan_inf_fn_type(
     (NanInfFunctionType(function_type), spv)
 }
 
-pub(super) fn nan_inf_shared_constants(
+pub(super) fn nan_inf_shared_constants_spv(
     ib: &mut u32,
     inputs: NanInfSharedTypeInputs,
 ) -> (NanInfSharedConstants, Vec<u32>) {
