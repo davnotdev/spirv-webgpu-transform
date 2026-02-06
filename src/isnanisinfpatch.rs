@@ -168,8 +168,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                 // let float_ty_id = spv[load_idx + 1];
 
                 let float_ty_id = trace_previous_intermediate_id(&spv, input_id, *op_idx)
-                    .expect("OpIsNan/Inf's argument is not defined?")
-                    .result_type_id;
+                    .expect("OpIsNan/Inf's argument is not defined?");
                 let original_float_type_id = float_ty_id;
                 let (underlying_float_ty_id, float_component_count) =
                     get_underlying_vector_type(float_ty_id)

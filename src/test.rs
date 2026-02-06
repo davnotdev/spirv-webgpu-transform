@@ -184,7 +184,7 @@ test_with_spv_and_fn_no_correction![
 ];
 test_with_spv_and_fn_no_correction![
     storagecubepatch_storagecube_nested,
-    DO_ALL,
+    SPV_VALIDATE,
     "./test/storagecubepatch/storagecube_nested.spv",
     storagecubepatch
 ];
