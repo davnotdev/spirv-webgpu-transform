@@ -66,6 +66,10 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let mut op_type_pointer_idxs = vec![];
     let mut op_variable_idxs = vec![];
     let mut op_load_idxs = vec![];
+    let mut op_type_int_idxs = vec![];
+    let mut op_type_bool_idxs = vec![];
+    let mut op_type_vector_idxs = vec![];
+    let mut op_ext_inst_imports = vec![];
 
     let mut image_operation_idxs = vec![];
 
@@ -80,6 +84,10 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             SPV_INSTRUCTION_OP_TYPE_POINTER => op_type_pointer_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_VARIABLE => op_variable_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_LOAD => op_load_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_TYPE_INT => op_type_int_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_TYPE_BOOL => op_type_bool_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_TYPE_VECTOR => op_type_vector_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_EXT_INST_IMPORT => op_ext_inst_imports.push(spv_idx),
             SPV_INSTRUCTION_OP_IMAGE_FETCH => {
                 image_operation_idxs.push(ImageOperation::Fetch(spv_idx))
             }
@@ -95,32 +103,126 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         spv_idx += word_count as usize;
     }
 
+    if op_type_vector_idxs.is_empty()
+        || op_type_image_idxs.is_empty()
+        || image_operation_idxs.is_empty()
+    {
+        return Ok(in_spv.to_vec());
+    }
+
+    let header_position = last_of_indices!(
+        op_type_int_idxs,
+        op_type_bool_idxs,
+        op_type_vector_idxs,
+        op_type_pointer_idxs
+    );
+
     // - Find / Insert Required Types
-    let type_inputs = CubeDirectionTypeInputs {
-        int_id: todo!(),
-        v3int_id: todo!(),
-        v2int_id: todo!(),
-        bool_id: todo!(),
-        ptr_v3int_id: todo!(),
-        ptr_int_id: todo!(),
-        ptr_bool_id: todo!(),
-        ptr_v2int_id: todo!(),
-    };
-    // - Find / Insert Required Constants
-    let constant_inputs = CubeDirectionConstants {
-        uint_0: todo!(),
-        uint_1: todo!(),
-        uint_2: todo!(),
-        int_0: todo!(),
-        int_1: todo!(),
-        int_2: todo!(),
-        int_3: todo!(),
-        int_4: todo!(),
-        int_5: todo!(),
+    let mut header_insert = InstructionInsert {
+        previous_spv_idx: header_position.unwrap(),
+        instruction: vec![],
     };
 
+    let bool_id = ensure_type_bool(
+        &spv,
+        &op_type_bool_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+    );
+    let bool_ptr_id = ensure_type_pointer(
+        &spv,
+        &op_type_pointer_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        SPV_STORAGE_CLASS_FUNCTION,
+        bool_id,
+    );
+    let int32_id = ensure_type_int(
+        &spv,
+        &op_type_int_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        32,
+        SPV_SIGNEDNESS_SIGNED,
+    );
+    let int32_ptr_id = ensure_type_pointer(
+        &spv,
+        &op_type_pointer_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        SPV_STORAGE_CLASS_FUNCTION,
+        int32_id,
+    );
+    let v3int32_id = ensure_type_vector(
+        &spv,
+        &op_type_vector_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        int32_id,
+        3,
+    );
+    let v3int32_ptr_id = ensure_type_pointer(
+        &spv,
+        &op_type_pointer_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        SPV_STORAGE_CLASS_FUNCTION,
+        v3int32_id,
+    );
+    let v2int32_id = ensure_type_vector(
+        &spv,
+        &op_type_vector_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        int32_id,
+        2,
+    );
+    let v2int32_ptr_id = ensure_type_pointer(
+        &spv,
+        &op_type_pointer_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        SPV_STORAGE_CLASS_FUNCTION,
+        v2int32_id,
+    );
+    let glsl_std_id = ensure_ext_inst_import(
+        &spv,
+        &op_ext_inst_imports,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        |s| s.starts_with("GLSL.std."),
+        "GLSL.std.450",
+    );
+
+    // We only need to validate the bool_id, ptr_int_id
+    let type_inputs = CubeDirectionTypeInputs {
+        int_id: int32_id,
+        v3int_id: v3int32_id,
+        v2int_id: v2int32_id,
+        bool_id,
+        ptr_v3int_id: v3int32_ptr_id,
+        ptr_int_id: int32_ptr_id,
+        ptr_bool_id: bool_ptr_id,
+        ptr_v2int_id: v2int32_ptr_id,
+    };
+    let (function_type_id, mut function_type_spv) =
+        image_cube_direction_to_arrayed_fn_type(&mut instruction_bound, type_inputs);
+    header_insert.instruction.append(&mut function_type_spv);
+
+    // - Find / Insert Required Constants
+    let (shared_constants, mut constants_spv) =
+        image_cube_direction_to_arrayed_constants_spv(&mut instruction_bound, int32_id);
+    header_insert.instruction.append(&mut constants_spv);
+
     // - Insert Function Type and Definition
-    let function_id = 0u32;
+    let (function_id, function_spv) = image_cube_direction_to_arrayed_spv(
+        &mut instruction_bound,
+        type_inputs,
+        function_type_id,
+        shared_constants,
+        glsl_std_id,
+    );
+    let mut function_definition_words = function_spv;
 
     // - Find OpTypeImage, change Cube -> 2D
     let type_image_ids = op_type_image_idxs
@@ -130,11 +232,15 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             let dim = spv[idx + 3];
             let arrayed = spv[idx + 5];
 
-            if dim == SPV_DIMENSION_2D && arrayed == 1 {
+            if dim == SPV_DIMENSION_CUBE && arrayed == 1 {
                 panic!("imageCubeArray is not supported");
             }
 
-            (dim == SPV_DIMENSION_2D).then_some(result_id)
+            // imageCube => image2DArray
+            new_spv[idx + 3] = SPV_DIMENSION_2D;
+            new_spv[idx + 5] = 1;
+
+            (dim == SPV_DIMENSION_CUBE).then_some(result_id)
         })
         .collect::<Vec<_>>();
 
@@ -205,7 +311,7 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                 encode_word(3, SPV_INSTRUCTION_OP_STORE),
                 temp_id,
                 coord_id,
-                encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_CALL),
+                encode_word(5, SPV_INSTRUCTION_OP_FUNCTION_CALL),
                 type_inputs.v3int_id,
                 output_id,
                 function_id,
@@ -224,9 +330,9 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     }
 
     // Insert New Instructions
-    // instruction_inserts.insert(0, header_insert);
+    instruction_inserts.insert(0, header_insert);
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);
-    // new_spv.append(&mut function_definition_words);
+    new_spv.append(&mut function_definition_words);
 
     // Remove Instructions that have been Whited Out.
     prune_noops(&mut new_spv);

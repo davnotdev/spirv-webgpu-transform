@@ -47,6 +47,7 @@ pub use isnanisinfpatch::*;
 pub use mirrorpatch::*;
 pub use splitcombined::*;
 pub use splitdref::*;
+pub use storagecubepatch::*;
 
 #[derive(Debug, Clone)]
 struct InstructionInsert {

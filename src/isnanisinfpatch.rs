@@ -67,10 +67,13 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     if op_is_nan_idxs.is_empty() && op_is_inf_idxs.is_empty() {
         return Ok(in_spv.to_vec());
     }
-    let Some(last_op_type_pointer) = op_type_pointer_idxs.last() else {
-        return Ok(in_spv.to_vec());
-    };
-    let last_op_type_pointer = *last_op_type_pointer;
+    let header_position = last_of_indices!(
+        op_type_int_idxs,
+        op_type_bool_idxs,
+        op_type_float_idxs,
+        op_type_vector_idxs,
+        op_type_pointer_idxs
+    );
 
     // 2. Useful closures
     let get_float_type_width = |id| {
@@ -92,57 +95,27 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     // 3. Insert shared uint definitions and shared constants
     // Since there are only two main float widths, we will include both for simplicity
     let mut header_insert = InstructionInsert {
-        previous_spv_idx: last_op_type_pointer,
+        previous_spv_idx: header_position.unwrap(),
         instruction: vec![],
-    };
-
-    let ensure_type_int =
-        |header: &mut Vec<u32>, instruction_bound: &mut u32, template_width: u32| {
-            if let Some(idx) = op_type_int_idxs.iter().find(|&&ty_idx| {
-                let width = spv[ty_idx + 2];
-                let signedness = spv[ty_idx + 2];
-
-                signedness == SPV_SIGNEDNESS_UNSIGNED && width == template_width
-            }) {
-                spv[idx + 1]
-            } else {
-                let new_id = *instruction_bound;
-                *instruction_bound += 1;
-                header.append(&mut vec![
-                    encode_word(4, SPV_INSTRUCTION_OP_TYPE_INT),
-                    new_id,
-                    template_width,
-                    SPV_SIGNEDNESS_UNSIGNED,
-                ]);
-                new_id
-            }
-        };
-    let ensure_type_ptr = |header: &mut Vec<u32>, instruction_bound: &mut u32, template_id: u32| {
-        if let Some(tp_idx) = op_type_pointer_idxs
-            .iter()
-            .find(|&&tp_idx| template_id == spv[tp_idx + 3])
-        {
-            spv[tp_idx + 1]
-        } else {
-            let new_id = *instruction_bound;
-            *instruction_bound += 1;
-            header.append(&mut vec![
-                encode_word(4, SPV_INSTRUCTION_OP_TYPE_POINTER),
-                new_id,
-                SPV_STORAGE_CLASS_FUNCTION,
-                template_id,
-            ]);
-            new_id
-        }
     };
 
     // NOTE: 64-bit isnan and isinf doesn't actually make much sense, so I will just leave it.
     // In standard glsl, you cannot write that kind of substitution because there is no `uint64_t` nor `doubleBitsToUint`.
 
-    let uint32_id = ensure_type_int(&mut header_insert.instruction, &mut instruction_bound, 32);
-    let uint32_ptr_id = ensure_type_ptr(
-        &mut header_insert.instruction,
+    let uint32_id = ensure_type_int(
+        &spv,
+        &op_type_int_idxs,
         &mut instruction_bound,
+        &mut header_insert.instruction,
+        32,
+        SPV_SIGNEDNESS_UNSIGNED,
+    );
+    let uint32_ptr_id = ensure_type_pointer(
+        &spv,
+        &op_type_pointer_idxs,
+        &mut instruction_bound,
+        &mut header_insert.instruction,
+        SPV_STORAGE_CLASS_FUNCTION,
         uint32_id,
     );
     let shared_type_inputs_32 = NanInfSharedTypeInputs {
@@ -305,7 +278,7 @@ pub fn isnanisinfpatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     // 5. Insert additional temp variables and indexing constants for vectored cases
     // We will create the shared data used to generate these variables here
     let mut indexing_constant_instructions = InstructionInsert {
-        previous_spv_idx: last_op_type_pointer,
+        previous_spv_idx: header_position.unwrap(),
         instruction: vec![],
     };
 

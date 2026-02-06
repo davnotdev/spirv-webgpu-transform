@@ -17,9 +17,6 @@ pub(super) struct CubeDirectionFunctionType(pub u32);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct CubeDirectionConstants {
-    pub uint_0: u32,
-    pub uint_1: u32,
-    pub uint_2: u32,
     pub int_0: u32,
     pub int_1: u32,
     pub int_2: u32,
@@ -44,12 +41,8 @@ pub(super) fn image_cube_direction_to_arrayed_fn_type(
 
 pub(super) fn image_cube_direction_to_arrayed_constants_spv(
     ib: &mut u32,
-    uint_id: u32,
     int_id: u32,
 ) -> (CubeDirectionConstants, Vec<u32>) {
-    // %uint_0 = OpConstant %uint 0
-    // %uint_1 = OpConstant %uint 1
-    // %uint_2 = OpConstant %uint 2
     // %int_0 = OpConstant %int 0
     // %int_1 = OpConstant %int 1
     // %int_2 = OpConstant %int 2
@@ -57,9 +50,6 @@ pub(super) fn image_cube_direction_to_arrayed_constants_spv(
     // %int_4 = OpConstant %int 4
     // %int_5 = OpConstant %int 5
 
-    let uint_0 = inc(ib);
-    let uint_1 = inc(ib);
-    let uint_2 = inc(ib);
     let int_0 = inc(ib);
     let int_1 = inc(ib);
     let int_2 = inc(ib);
@@ -69,12 +59,6 @@ pub(super) fn image_cube_direction_to_arrayed_constants_spv(
 
     #[rustfmt::skip]
     let spv = vec![
-        encode_word(4, SPV_INSTRUCTION_OP_CONSTANT),
-            uint_id, uint_0, 0,
-        encode_word(4, SPV_INSTRUCTION_OP_CONSTANT),
-            uint_id, uint_1, 1,
-        encode_word(4, SPV_INSTRUCTION_OP_CONSTANT),
-            uint_id, uint_2, 2,
         encode_word(4, SPV_INSTRUCTION_OP_CONSTANT),
             int_id, int_0, 0,
         encode_word(4, SPV_INSTRUCTION_OP_CONSTANT),
@@ -91,9 +75,6 @@ pub(super) fn image_cube_direction_to_arrayed_constants_spv(
 
     (
         CubeDirectionConstants {
-            uint_0,
-            uint_1,
-            uint_2,
             int_0,
             int_1,
             int_2,
@@ -105,7 +86,7 @@ pub(super) fn image_cube_direction_to_arrayed_constants_spv(
     )
 }
 
-pub(super) fn cube_direction_to_axis_spv(
+pub(super) fn image_cube_direction_to_arrayed_spv(
     ib: &mut u32,
     ty_inputs: CubeDirectionTypeInputs,
     function_type: CubeDirectionFunctionType,
@@ -130,34 +111,34 @@ pub(super) fn cube_direction_to_axis_spv(
     //      %14 = OpLoad %v3int %r
     //      %15 = OpExtInst %v3int %1 SAbs %14
     //            OpStore %a %15
-    //      %22 = OpAccessChain %_ptr_Function_int %a %uint_0
+    //      %22 = OpAccessChain %_ptr_Function_int %a %int_0
     //      %23 = OpLoad %int %22
-    //      %25 = OpAccessChain %_ptr_Function_int %a %uint_1
+    //      %25 = OpAccessChain %_ptr_Function_int %a %int_1
     //      %26 = OpLoad %int %25
     //      %27 = OpSGreaterThanEqual %bool %23 %26
     //            OpSelectionMerge %29 None
     //            OpBranchConditional %27 %28 %29
     //      %28 = OpLabel
-    //      %30 = OpAccessChain %_ptr_Function_int %a %uint_0
+    //      %30 = OpAccessChain %_ptr_Function_int %a %int_0
     //      %31 = OpLoad %int %30
-    //      %33 = OpAccessChain %_ptr_Function_int %a %uint_2
+    //      %33 = OpAccessChain %_ptr_Function_int %a %int_2
     //      %34 = OpLoad %int %33
     //      %35 = OpSGreaterThanEqual %bool %31 %34
     //            OpBranch %29
     //      %29 = OpLabel
     //      %36 = OpPhi %bool %27 %12 %35 %28
     //            OpStore %x %36
-    //      %38 = OpAccessChain %_ptr_Function_int %a %uint_1
+    //      %38 = OpAccessChain %_ptr_Function_int %a %int_1
     //      %39 = OpLoad %int %38
-    //      %40 = OpAccessChain %_ptr_Function_int %a %uint_0
+    //      %40 = OpAccessChain %_ptr_Function_int %a %int_0
     //      %41 = OpLoad %int %40
     //      %42 = OpSGreaterThan %bool %39 %41
     //            OpSelectionMerge %44 None
     //            OpBranchConditional %42 %43 %44
     //      %43 = OpLabel
-    //      %45 = OpAccessChain %_ptr_Function_int %a %uint_1
+    //      %45 = OpAccessChain %_ptr_Function_int %a %int_1
     //      %46 = OpLoad %int %45
-    //      %47 = OpAccessChain %_ptr_Function_int %a %uint_2
+    //      %47 = OpAccessChain %_ptr_Function_int %a %int_2
     //      %48 = OpLoad %int %47
     //      %49 = OpSGreaterThanEqual %bool %46 %48
     //            OpBranch %44
@@ -168,7 +149,7 @@ pub(super) fn cube_direction_to_axis_spv(
     //            OpSelectionMerge %55 None
     //            OpBranchConditional %52 %54 %62
     //      %54 = OpLabel
-    //      %56 = OpAccessChain %_ptr_Function_int %r %uint_0
+    //      %56 = OpAccessChain %_ptr_Function_int %r %int_0
     //      %57 = OpLoad %int %56
     //      %59 = OpSGreaterThan %bool %57 %int_0
     //      %61 = OpSelect %int %59 %int_0 %int_1
@@ -179,14 +160,14 @@ pub(super) fn cube_direction_to_axis_spv(
     //            OpSelectionMerge %66 None
     //            OpBranchConditional %63 %65 %73
     //      %65 = OpLabel
-    //      %67 = OpAccessChain %_ptr_Function_int %r %uint_1
+    //      %67 = OpAccessChain %_ptr_Function_int %r %int_1
     //      %68 = OpLoad %int %67
     //      %69 = OpSGreaterThan %bool %68 %int_0
     //      %72 = OpSelect %int %69 %int_2 %int_3
     //            OpStore %64 %72
     //            OpBranch %66
     //      %73 = OpLabel
-    //      %74 = OpAccessChain %_ptr_Function_int %r %uint_2
+    //      %74 = OpAccessChain %_ptr_Function_int %r %int_2
     //      %75 = OpLoad %int %74
     //      %76 = OpSGreaterThan %bool %75 %int_0
     //      %79 = OpSelect %int %76 %int_4 %int_5
@@ -204,10 +185,10 @@ pub(super) fn cube_direction_to_axis_spv(
     //            OpSelectionMerge %89 None
     //            OpBranchConditional %86 %88 %97
     //      %88 = OpLabel
-    //      %90 = OpAccessChain %_ptr_Function_int %r %uint_2
+    //      %90 = OpAccessChain %_ptr_Function_int %r %int_2
     //      %91 = OpLoad %int %90
     //      %92 = OpSNegate %int %91
-    //      %93 = OpAccessChain %_ptr_Function_int %r %uint_1
+    //      %93 = OpAccessChain %_ptr_Function_int %r %int_1
     //      %94 = OpLoad %int %93
     //      %95 = OpSNegate %int %94
     //      %96 = OpCompositeConstruct %v2int %92 %95
@@ -219,9 +200,9 @@ pub(super) fn cube_direction_to_axis_spv(
     //            OpSelectionMerge %102 None
     //            OpBranchConditional %99 %101 %109
     //     %101 = OpLabel
-    //     %103 = OpAccessChain %_ptr_Function_int %r %uint_2
+    //     %103 = OpAccessChain %_ptr_Function_int %r %int_2
     //     %104 = OpLoad %int %103
-    //     %105 = OpAccessChain %_ptr_Function_int %r %uint_1
+    //     %105 = OpAccessChain %_ptr_Function_int %r %int_1
     //     %106 = OpLoad %int %105
     //     %107 = OpSNegate %int %106
     //     %108 = OpCompositeConstruct %v2int %104 %107
@@ -233,9 +214,9 @@ pub(super) fn cube_direction_to_axis_spv(
     //            OpSelectionMerge %114 None
     //            OpBranchConditional %111 %113 %120
     //     %113 = OpLabel
-    //     %115 = OpAccessChain %_ptr_Function_int %r %uint_0
+    //     %115 = OpAccessChain %_ptr_Function_int %r %int_0
     //     %116 = OpLoad %int %115
-    //     %117 = OpAccessChain %_ptr_Function_int %r %uint_2
+    //     %117 = OpAccessChain %_ptr_Function_int %r %int_2
     //     %118 = OpLoad %int %117
     //     %119 = OpCompositeConstruct %v2int %116 %118
     //            OpStore %112 %119
@@ -246,9 +227,9 @@ pub(super) fn cube_direction_to_axis_spv(
     //            OpSelectionMerge %125 None
     //            OpBranchConditional %122 %124 %132
     //     %124 = OpLabel
-    //     %126 = OpAccessChain %_ptr_Function_int %r %uint_0
+    //     %126 = OpAccessChain %_ptr_Function_int %r %int_0
     //     %127 = OpLoad %int %126
-    //     %128 = OpAccessChain %_ptr_Function_int %r %uint_2
+    //     %128 = OpAccessChain %_ptr_Function_int %r %int_2
     //     %129 = OpLoad %int %128
     //     %130 = OpSNegate %int %129
     //     %131 = OpCompositeConstruct %v2int %127 %130
@@ -260,19 +241,19 @@ pub(super) fn cube_direction_to_axis_spv(
     //            OpSelectionMerge %137 None
     //            OpBranchConditional %134 %136 %144
     //     %136 = OpLabel
-    //     %138 = OpAccessChain %_ptr_Function_int %r %uint_0
+    //     %138 = OpAccessChain %_ptr_Function_int %r %int_0
     //     %139 = OpLoad %int %138
-    //     %140 = OpAccessChain %_ptr_Function_int %r %uint_1
+    //     %140 = OpAccessChain %_ptr_Function_int %r %int_1
     //     %141 = OpLoad %int %140
     //     %142 = OpSNegate %int %141
     //     %143 = OpCompositeConstruct %v2int %139 %142
     //            OpStore %135 %143
     //            OpBranch %137
     //     %144 = OpLabel
-    //     %145 = OpAccessChain %_ptr_Function_int %r %uint_0
+    //     %145 = OpAccessChain %_ptr_Function_int %r %int_0
     //     %146 = OpLoad %int %145
     //     %147 = OpSNegate %int %146
-    //     %148 = OpAccessChain %_ptr_Function_int %r %uint_1
+    //     %148 = OpAccessChain %_ptr_Function_int %r %int_1
     //     %149 = OpLoad %int %148
     //     %150 = OpSNegate %int %149
     //     %151 = OpCompositeConstruct %v2int %147 %150
@@ -308,9 +289,6 @@ pub(super) fn cube_direction_to_axis_spv(
     let function_type = function_type.0;
 
     let CubeDirectionConstants {
-        uint_0,
-        uint_1,
-        uint_2,
         int_0,
         int_1,
         int_2,
@@ -530,34 +508,34 @@ pub(super) fn cube_direction_to_axis_spv(
             
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             v3int_id, res_14, r,
-        encode_word(5, SPV_INSTRUCTION_OP_EXT_INST),
-            v3int_id, res_15, glsl_std_id, 201, res_14,
+        encode_word(6, SPV_INSTRUCTION_OP_EXT_INST),
+            v3int_id, res_15, glsl_std_id, SPV_GLSL_STD_INSTRUCTION_SABS, res_14,
         encode_word(3, SPV_INSTRUCTION_OP_STORE),
             a, res_15,
             
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_22, a, uint_0,
+            ptr_int_id, res_22, a, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_23, res_22,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_25, a, uint_1,
+            ptr_int_id, res_25, a, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_26, res_25,
         encode_word(5, SPV_INSTRUCTION_OP_S_GREATER_THAN_EQUAL),
             bool_id, res_27, res_23, res_26,
         encode_word(3, SPV_INSTRUCTION_OP_SELECTION_MERGE),
-            label_29, 0, // 0 = None
+            label_29, 0, 
         encode_word(4, SPV_INSTRUCTION_OP_BRANCH_CONDITIONAL),
             res_27, label_28, label_29,
             
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_28,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_30, a, uint_0,
+            ptr_int_id, res_30, a, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_31, res_30,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_33, a, uint_2,
+            ptr_int_id, res_33, a, int_2,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_34, res_33,
         encode_word(5, SPV_INSTRUCTION_OP_S_GREATER_THAN_EQUAL),
@@ -573,11 +551,11 @@ pub(super) fn cube_direction_to_axis_spv(
             x, res_36,
             
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_38, a, uint_1,
+            ptr_int_id, res_38, a, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_39, res_38,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_40, a, uint_0,
+            ptr_int_id, res_40, a, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_41, res_40,
         encode_word(5, SPV_INSTRUCTION_OP_S_GREATER_THAN),
@@ -590,11 +568,11 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_43,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_45, a, uint_1,
+            ptr_int_id, res_45, a, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_46, res_45,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_47, a, uint_2,
+            ptr_int_id, res_47, a, int_2,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_48, res_47,
         encode_word(5, SPV_INSTRUCTION_OP_S_GREATER_THAN_EQUAL),
@@ -619,7 +597,7 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_54,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_56, r, uint_0,
+            ptr_int_id, res_56, r, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_57, res_56,
         encode_word(5, SPV_INSTRUCTION_OP_S_GREATER_THAN),
@@ -643,7 +621,7 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_65,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_67, r, uint_1,
+            ptr_int_id, res_67, r, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_68, res_67,
         encode_word(5, SPV_INSTRUCTION_OP_S_GREATER_THAN),
@@ -658,7 +636,7 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_73,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_74, r, uint_2,
+            ptr_int_id, res_74, r, int_2,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_75, res_74,
         encode_word(5, SPV_INSTRUCTION_OP_S_GREATER_THAN),
@@ -698,13 +676,13 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_88,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_90, r, uint_2,
+            ptr_int_id, res_90, r, int_2,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_91, res_90,
         encode_word(4, SPV_INSTRUCTION_OP_S_NEGATE),
             int_id, res_92, res_91,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_93, r, uint_1,
+            ptr_int_id, res_93, r, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_94, res_93,
         encode_word(4, SPV_INSTRUCTION_OP_S_NEGATE),
@@ -730,11 +708,11 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_101,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_103, r, uint_2,
+            ptr_int_id, res_103, r, int_2,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_104, res_103,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_105, r, uint_1,
+            ptr_int_id, res_105, r, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_106, res_105,
         encode_word(4, SPV_INSTRUCTION_OP_S_NEGATE),
@@ -760,11 +738,11 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_113,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_115, r, uint_0,
+            ptr_int_id, res_115, r, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_116, res_115,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_117, r, uint_2,
+            ptr_int_id, res_117, r, int_2,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_118, res_117,
         encode_word(5, SPV_INSTRUCTION_OP_COMPOSITE_CONSTRUCT),
@@ -788,11 +766,11 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_124,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_126, r, uint_0,
+            ptr_int_id, res_126, r, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_127, res_126,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_128, r, uint_2,
+            ptr_int_id, res_128, r, int_2,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_129, res_128,
         encode_word(4, SPV_INSTRUCTION_OP_S_NEGATE),
@@ -818,11 +796,11 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_136,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_138, r, uint_0,
+            ptr_int_id, res_138, r, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_139, res_138,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_140, r, uint_1,
+            ptr_int_id, res_140, r, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_141, res_140,
         encode_word(4, SPV_INSTRUCTION_OP_S_NEGATE),
@@ -837,13 +815,13 @@ pub(super) fn cube_direction_to_axis_spv(
         encode_word(2, SPV_INSTRUCTION_OP_LABEL),
             label_144,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_145, r, uint_0,
+            ptr_int_id, res_145, r, int_0,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_146, res_145,
         encode_word(4, SPV_INSTRUCTION_OP_S_NEGATE),
             int_id, res_147, res_146,
         encode_word(5, SPV_INSTRUCTION_OP_ACCESS_CHAIN),
-            ptr_int_id, res_148, r, uint_1,
+            ptr_int_id, res_148, r, int_1,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_149, res_148,
         encode_word(4, SPV_INSTRUCTION_OP_S_NEGATE),
@@ -902,9 +880,9 @@ pub(super) fn cube_direction_to_axis_spv(
             v2int_id, res_157, st,
         encode_word(4, SPV_INSTRUCTION_OP_LOAD),
             int_id, res_158, face,
-        encode_word(4, SPV_INSTRUCTION_OP_COMPOSITE_EXTRACT),
+        encode_word(5, SPV_INSTRUCTION_OP_COMPOSITE_EXTRACT),
             int_id, res_159, res_157, 0,
-        encode_word(4, SPV_INSTRUCTION_OP_COMPOSITE_EXTRACT),
+        encode_word(5, SPV_INSTRUCTION_OP_COMPOSITE_EXTRACT),
             int_id, res_160, res_157, 1,
         encode_word(6, SPV_INSTRUCTION_OP_COMPOSITE_CONSTRUCT),
             v3int_id, res_161, res_159, res_160, res_158,

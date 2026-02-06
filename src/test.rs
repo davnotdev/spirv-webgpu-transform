@@ -1,6 +1,6 @@
 use super::{
-    combimgsampsplitter, drefsplitter, isnanisinfpatch, mirrorpatch, u8_slice_to_u32_vec,
-    u32_slice_to_u8_vec,
+    combimgsampsplitter, drefsplitter, isnanisinfpatch, mirrorpatch, storagecubepatch,
+    u8_slice_to_u32_vec, u32_slice_to_u8_vec,
 };
 
 use naga::{back, front, valid};
@@ -172,4 +172,25 @@ test_with_spv_and_fn_no_correction![
     DO_ALL,
     "./test/isnanisinfpatch/isnanisinf_immediate.spv",
     isnanisinfpatch
+];
+
+// ---
+
+test_with_spv_and_fn_no_correction![
+    storagecubepatch_storagecube,
+    DO_ALL,
+    "./test/storagecubepatch/storagecube.spv",
+    storagecubepatch
+];
+test_with_spv_and_fn_no_correction![
+    storagecubepatch_storagecube_nested,
+    DO_ALL,
+    "./test/storagecubepatch/storagecube_nested.spv",
+    storagecubepatch
+];
+test_with_spv_and_fn_no_correction![
+    storagecubepatch_storagecube_immediate,
+    DO_ALL,
+    "./test/storagecubepatch/storagecube_immediate.spv",
+    storagecubepatch
 ];
