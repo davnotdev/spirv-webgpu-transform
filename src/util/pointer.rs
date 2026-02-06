@@ -1,6 +1,6 @@
 use super::*;
 
-// If we are given an instruction that takes an intermediate value, we need a way of knowing its
+// If we are given an instruction that takes an immediate value, we need a way of knowing its
 // underlying type and pointer type.
 // That is hard to do because we cannot know instruction this stems from.
 // We will assume that some instruction close by follows the form:

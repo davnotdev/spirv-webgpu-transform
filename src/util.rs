@@ -2,11 +2,13 @@ use super::*;
 
 mod correct_decorate;
 mod decorate;
+mod ensure;
 mod function;
 mod pointer;
 
 pub use correct_decorate::*;
 pub use decorate::*;
+pub use ensure::*;
 pub use function::*;
 pub use pointer::*;
 
@@ -20,6 +22,31 @@ pub fn loword(value: u32) -> u16 {
 
 pub const fn encode_word(hiword: u16, loword: u16) -> u32 {
     ((hiword as u32) << 16) | (loword as u32)
+}
+
+// From spec, "The UTF-8 octets (8-bit bytes) are packed four per word, following the little-endian convention"
+pub fn literal_to_string_le(input: &[u32]) -> Result<String, std::str::Utf8Error> {
+    let mut bytes = Vec::with_capacity(input.len() * 4);
+
+    for &word in input {
+        bytes.extend_from_slice(&word.to_le_bytes());
+    }
+
+    str::from_utf8(&bytes).map(|s| s.to_string())
+}
+pub fn string_to_literal_le(s: &str) -> Vec<u32> {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len().div_ceil(4));
+
+    let mut chunk = [0u8; 4];
+
+    for group in bytes.chunks(4) {
+        chunk.fill(0);
+        chunk[..group.len()].copy_from_slice(group);
+        out.push(u32::from_le_bytes(chunk));
+    }
+
+    out
 }
 
 pub fn insert_new_instructions(
@@ -90,4 +117,13 @@ pub fn fuse_final(
     let mut out_spv = spv_header;
     out_spv.append(&mut new_spv);
     out_spv
+}
+
+#[test]
+fn test_literal_string_parsing() {
+    let s = "GLSL.std.450".to_owned();
+    let u32_vec = string_to_literal_le(&s);
+    assert_eq!(u32_vec, vec![1280527431, 1685353262, 808793134]);
+    let final_s = literal_to_string_le(&u32_vec);
+    assert_eq!(Ok(s), final_s);
 }

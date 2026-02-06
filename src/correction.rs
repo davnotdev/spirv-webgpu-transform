@@ -1,5 +1,8 @@
 use super::*;
 
+// Q: Hey what happens when you stack corrections?
+// A: I don't want to think about it... I will start thinking after a refactor...
+
 #[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CorrectionType {
@@ -10,6 +13,8 @@ pub enum CorrectionType {
     /// A mixed depth texture / sampler has been duplicated, insert the same object again with a
     /// `Comparison` bind type.
     SplitDrefComparison = 2,
+    /// A storage cube texture has been converted into a storage texture 2D array (change dimension).
+    ConvertStorageCube = 3,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

@@ -4,7 +4,9 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 4 {
-        eprintln!("Usage: spv_webgpu_transform <combimg|dref|isnanisinf> <input.spv> <output.spv>");
+        eprintln!(
+            "Usage: spv_webgpu_transform <combimg|dref|isnanisinf|storagecube> <input.spv> <output.spv>"
+        );
         process::exit(1);
     }
 
@@ -25,6 +27,9 @@ fn main() {
         }
         "dref" => spirv_webgpu_transform::drefsplitter(&spv, &mut out_correction_map).unwrap(),
         "isnanisinf" => spirv_webgpu_transform::isnanisinfpatch(&spv).unwrap(),
+        "storagecube" => {
+            spirv_webgpu_transform::storagecubepatch(&spv, &mut out_correction_map).unwrap()
+        }
         mode => {
             eprintln!("unknown mode {:?}", mode);
             process::exit(1)

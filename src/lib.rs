@@ -9,6 +9,7 @@
 //! | Combined Image Samplers   | ✅          | ✅     | ✅     |
 //! | Mixed Depth / Comparison  | ✅          | ⚠️\*   | ❌     |
 //! | isnan / isinf Patching    | ✅          | ✅     | ✅     |
+//! | Storage Cube Patching     | ✅          | ✅     | ✅     |
 //!
 //! > \* Simple cases are OK.
 //! > With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
@@ -33,6 +34,7 @@ mod mirrorpatch;
 mod splitcombined;
 mod splitdref;
 mod spv;
+mod storagecubepatch;
 mod util;
 
 #[cfg(test)]
@@ -46,6 +48,7 @@ pub use isnanisinfpatch::*;
 pub use mirrorpatch::*;
 pub use splitcombined::*;
 pub use splitdref::*;
+pub use storagecubepatch::*;
 
 #[derive(Debug, Clone)]
 struct InstructionInsert {
