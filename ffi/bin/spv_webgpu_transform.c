@@ -32,16 +32,22 @@ int main() {
     uint32_t isnanisinf_out_count;
     spirv_webgpu_transform_isnanisinfpatch_alloc(dref_out_spv, dref_out_count, &isnanisinf_out_spv, &isnanisinf_out_count);
 
+    uint32_t* storagecube_out_spv;
+    uint32_t storagecube_out_count;
+    spirv_webgpu_transform_storagecubepatch_alloc(isnanisinf_out_spv, isnanisinf_out_count, &storagecube_out_spv, &storagecube_out_count, &correction_map);
+
     // 3. Observe the patched variables
     print_set_binding(correction_map, 0, 0);
     print_set_binding(correction_map, 0, 1);
     print_set_binding(correction_map, 1, 0);
+    print_set_binding(correction_map, 2, 0);
 
     // Fluke values should return None
     print_set_binding(correction_map, 1, 1);
-    print_set_binding(correction_map, 2, 0);
+    print_set_binding(correction_map, 3, 0);
 
     // 4. Free memory
+    spirv_webgpu_transform_storagecubepatch_free(storagecube_out_spv);
     spirv_webgpu_transform_isnanisinfpatch_free(isnanisinf_out_spv);
     spirv_webgpu_transform_drefsplitter_free(dref_out_spv);
     spirv_webgpu_transform_combimgsampsplitter_free(comb_out_spv);
@@ -73,6 +79,9 @@ void print_set_binding(TransformCorrectionMap map, uint32_t set, uint32_t bindin
                 break;
             case SPIRV_WEBGPU_TRANSFORM_CORRECTION_TYPE_SPLIT_DREF_COMPARISON:
                 printf("SPLIT_DREF_COMPARISON ");
+                break;
+            case SPIRV_WEBGPU_TRANSFORM_CORRECTION_TYPE_CONVERT_STORAGE_CUBE:
+                printf("CONVERT_STORAGE_CUBE ");
                 break;
         }
     }

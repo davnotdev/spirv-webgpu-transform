@@ -341,7 +341,7 @@ pub fn storagecubepatch(
             .map(|id| AffectedDecoration {
                 original_res_id: *id,
                 new_res_id: *id,
-                correction_type: CorrectionType::ConvertStorageCubeTexture,
+                correction_type: CorrectionType::ConvertStorageCube,
             })
             .collect::<Vec<_>>(),
         corrections,

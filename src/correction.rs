@@ -14,7 +14,7 @@ pub enum CorrectionType {
     /// `Comparison` bind type.
     SplitDrefComparison = 2,
     /// A storage cube texture has been converted into a storage texture 2D array (change dimension).
-    ConvertStorageCubeTexture = 3,
+    ConvertStorageCube = 3,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
