@@ -176,21 +176,21 @@ test_with_spv_and_fn_no_correction![
 
 // ---
 
-test_with_spv_and_fn_no_correction![
+test_with_spv_and_fn!(
     storagecubepatch_storagecube,
     DO_ALL,
     "./test/storagecubepatch/storagecube.spv",
     storagecubepatch
-];
-test_with_spv_and_fn_no_correction![
+);
+test_with_spv_and_fn!(
     storagecubepatch_storagecube_nested,
     SPV_VALIDATE,
     "./test/storagecubepatch/storagecube_nested.spv",
     storagecubepatch
-];
-test_with_spv_and_fn_no_correction![
+);
+test_with_spv_and_fn!(
     storagecubepatch_storagecube_immediate,
     DO_ALL,
     "./test/storagecubepatch/storagecube_immediate.spv",
     storagecubepatch
-];
+);

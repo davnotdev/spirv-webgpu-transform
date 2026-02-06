@@ -45,7 +45,10 @@ where
 /// Perform the operation on a `Vec<u32>`.
 /// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`.
 /// Does not produce any side effects or corrections.
-pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
+pub fn storagecubepatch(
+    in_spv: &[u32],
+    corrections: &mut Option<CorrectionMap>,
+) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 
     let mut instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
@@ -69,9 +72,10 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let mut op_type_int_idxs = vec![];
     let mut op_type_bool_idxs = vec![];
     let mut op_type_vector_idxs = vec![];
-    let mut op_ext_inst_imports = vec![];
-    let mut op_function_parameter = vec![];
-    let mut op_function_call = vec![];
+    let mut op_ext_inst_import_idxs = vec![];
+    let mut op_function_parameter_idxs = vec![];
+    let mut op_function_call_idxs = vec![];
+    let mut op_decorate_idxs = vec![];
 
     let mut image_operation_idxs = vec![];
 
@@ -89,9 +93,10 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             SPV_INSTRUCTION_OP_TYPE_INT => op_type_int_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_BOOL => op_type_bool_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_VECTOR => op_type_vector_idxs.push(spv_idx),
-            SPV_INSTRUCTION_OP_EXT_INST_IMPORT => op_ext_inst_imports.push(spv_idx),
-            SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => op_function_parameter.push(spv_idx),
-            SPV_INSTRUCTION_OP_FUNCTION_CALL => op_function_call.push(spv_idx),
+            SPV_INSTRUCTION_OP_EXT_INST_IMPORT => op_ext_inst_import_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => op_function_parameter_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_FUNCTION_CALL => op_function_call_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_DECORATE => op_decorate_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_IMAGE_FETCH => {
                 image_operation_idxs.push(ImageOperation::Fetch(spv_idx))
             }
@@ -191,7 +196,7 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     );
     let glsl_std_id = ensure_ext_inst_import(
         &spv,
-        &op_ext_inst_imports,
+        &op_ext_inst_import_idxs,
         &mut instruction_bound,
         &mut header_insert.instruction,
         |s| s.starts_with("GLSL.std."),
@@ -263,7 +268,7 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let loadable_ids = op_variable_idxs
         .iter()
         // Yes, offsets 1 and 2 are identical
-        .chain(op_function_parameter.iter())
+        .chain(op_function_parameter_idxs.iter())
         .filter_map(|idx| {
             let result_id = spv[idx + 2];
             let result_type_id = spv[idx + 1];
@@ -325,6 +330,22 @@ pub fn storagecubepatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             new_spv[op_idx..op_idx + op_word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
         }
     }
+
+    decorate(DecorateIn {
+        spv: &spv,
+        instruction_inserts: &mut vec![],
+        first_op_deocrate_idx: op_decorate_idxs.first().copied(),
+        op_decorate_idxs: &op_decorate_idxs,
+        affected_decorations: &loadable_ids
+            .iter()
+            .map(|id| AffectedDecoration {
+                original_res_id: *id,
+                new_res_id: *id,
+                correction_type: CorrectionType::ConvertStorageCubeTexture,
+            })
+            .collect::<Vec<_>>(),
+        corrections,
+    });
 
     // 8. Insert New Instructions
     instruction_inserts.insert(0, header_insert);
