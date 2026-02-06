@@ -5,8 +5,8 @@ fn inc(ib: &mut u32) -> u32 {
     *ib - 1
 }
 
-mod cube_direction_to_axis;
-use cube_direction_to_axis::*;
+mod image_cube_direction_to_arrayed;
+use image_cube_direction_to_arrayed::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum ImageOperation<T> {

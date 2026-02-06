@@ -18,6 +18,7 @@ At the moment, the following transformations are supported:
 | Combined Image Samplers   | ✅          | ✅     | ✅     |
 | Mixed Depth / Comparison  | ✅          | ⚠️\*   | ❌     |
 | isnan / isinf Patching    | ✅          | ✅     | ✅     |
+| Storage Cube Patching     | ✅          | ✅     | ✅     |
 
 > \* Simple cases are OK.
 > With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
@@ -124,6 +125,39 @@ Support also includes vector types (`vecN` input and `bvecN` output).
 ### Additional Notes
 
 - Only 32-bit floats are supported, other bit widths are not supported 
+
+## Storage Cube Patching
+
+WGSL does not support GLSL's `imageCube` and equivalents.
+This transformation properly replaces `imageCube` with GLSL's `image2DArray` or WGSL's `texture_storage_2d_array`.
+The proper coordinate transformations are handled by the shader patch.
+
+```glsl
+layout(set = 0, binding = 0) uniform writeonly imageCube u_ic;
+// is converted into...
+layout(set = 0, binding = 0) uniform writeonly image2DArray u_ic;
+
+void main() {
+    imageStore(u_ic, coord, value);
+    // is converted into...
+    imageStore(u_ic, _imageCubeDirectionToArrayed(coord), value);
+}
+```
+
+### Tests
+
+| Test                         | `spirv-val` | Naga   | Tint |
+| ---------------------------- | ----------- | ------ | ---- |
+| `storagecube.frag`           | ✅          | ✅     | ✅   |
+| `storagecube_immediate.frag` | ✅          | ✅     | ✅   |
+| `storagecube_nested.frag`    | ✅          | ❌     | ❌   |
+
+> For function nesting, see this [wgpu issue](https://github.com/gfx-rs/wgpu/issues/6797) and this [gpuweb issue](https://github.com/gpuweb/gpuweb/issues/4298)
+
+### Additional Notes
+
+- You *can* nest `imageCube` usages in functions, but this will not translate to WGSL
+- `imageCubeArray` is not supported
 
 ## Library Usage
 
