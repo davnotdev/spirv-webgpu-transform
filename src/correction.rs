@@ -13,7 +13,7 @@ pub enum CorrectionType {
     /// A mixed depth texture / sampler has been duplicated, insert the same object again with a
     /// `Comparison` bind type.
     SplitDrefComparison = 2,
-    /// A storage cube texture has been converted into a storage texture 2D array (change dimension).
+    /// A storage cube texture has been converted into a storage texture 2D array, change the dimension.
     ConvertStorageCube = 3,
 }
 

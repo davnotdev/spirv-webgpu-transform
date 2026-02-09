@@ -240,16 +240,21 @@ pub fn storagecubepatch(
             let result_id = spv[idx + 1];
             let dim = spv[idx + 3];
             let arrayed = spv[idx + 5];
+            // 0: unknown, 1: sampling, 2: read/write
+            let sampled = spv[idx + 7];
 
-            if dim == SPV_DIMENSION_CUBE && arrayed == 1 {
+            if dim == SPV_DIMENSION_CUBE && arrayed == 1 && sampled == 2 {
                 panic!("imageCubeArray is not supported");
             }
 
             // imageCube => image2DArray
-            new_spv[idx + 3] = SPV_DIMENSION_2D;
-            new_spv[idx + 5] = 1;
-
-            (dim == SPV_DIMENSION_CUBE).then_some(result_id)
+            if dim == SPV_DIMENSION_CUBE && sampled == 2 {
+                new_spv[idx + 3] = SPV_DIMENSION_2D;
+                new_spv[idx + 5] = 1;
+                Some(result_id)
+            } else {
+                None
+            }
         })
         .collect::<Vec<_>>();
 
@@ -331,6 +336,7 @@ pub fn storagecubepatch(
         }
     }
 
+    // 8. Fill Correction Map
     decorate(DecorateIn {
         spv: &spv,
         instruction_inserts: &mut vec![],
@@ -347,14 +353,14 @@ pub fn storagecubepatch(
         corrections,
     });
 
-    // 8. Insert New Instructions
+    // 9. Insert New Instructions
     instruction_inserts.insert(0, header_insert);
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);
     new_spv.append(&mut function_definition_words);
 
-    // 9. Remove Instructions that have been Whited Out.
+    // 10. Remove Instructions that have been Whited Out.
     prune_noops(&mut new_spv);
 
-    // 10. Write New Header and New Code
+    // 11. Write New Header and New Code
     Ok(fuse_final(spv_header, new_spv, instruction_bound))
 }
