@@ -510,8 +510,8 @@ pub fn drefsplitter(
             original_res_id: spv[variable_idx + 2],
             new_res_id: new_variable_id,
             correction_type: match complement_ty {
-                OperationVariant::Regular => CorrectionType::SplitDrefComparison,
-                OperationVariant::Dref => CorrectionType::SplitDrefRegular,
+                OperationVariant::Regular => CorrectionType::SplitDrefRegular,
+                OperationVariant::Dref => CorrectionType::SplitDrefComparison,
             },
         });
 
