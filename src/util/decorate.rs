@@ -68,12 +68,12 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                 if *original_res_id == target_id {
                     if decoration_id == SPV_DECORATION_BINDING {
                         new_variable_id_to_decorations
-                            .entry((new_res_id, correction_type))
+                            .entry((new_res_id, (*original_res_id, correction_type)))
                             .or_insert((None, None))
                             .0 = Some((d_idx, decoration_value));
                     } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
                         new_variable_id_to_decorations
-                            .entry((new_res_id, correction_type))
+                            .entry((new_res_id, (*original_res_id, correction_type)))
                             .or_insert((None, None))
                             .1 = Some((d_idx, decoration_value));
                         descriptor_sets_to_correct.insert(decoration_value);
@@ -132,12 +132,21 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
 
     let old_corrections = corrections.clone();
 
+    // For bindings with more than one corrections.
+    type OriginalIdAndBindingIndex = (u32, u32);
+    let mut original_binding_counts: HashMap<OriginalIdAndBindingIndex, u32> = HashMap::new();
+
     // - Insert new descriptor set and binding for new ~~sampler~~ variable
     new_variable_id_to_decorations.iter().for_each(
         |(
-            (new_res_id, correction_type),
+            (new_res_id, (original_res_id, correction_type)),
             ((_binding_idx, binding), (_descriptor_set_idx, descriptor_set)),
         )| {
+            let offset = original_binding_counts
+                .entry((*original_res_id, *binding))
+                .or_insert(1);
+            let new_binding_idx = binding + *offset;
+            *offset += 1;
             // - Create the decorations for the new variable
             instruction_inserts.push(InstructionInsert {
                 // NOTE: If bindings are not ordered reasonably in spv, the original
@@ -160,7 +169,7 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                     encode_word(4, SPV_INSTRUCTION_OP_DECORATE),
                     **new_res_id,
                     SPV_DECORATION_BINDING,
-                    binding + 1,
+                    new_binding_idx,
                 ],
             });
 
