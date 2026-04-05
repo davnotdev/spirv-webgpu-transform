@@ -54,14 +54,14 @@ pub fn correct_decorate(cd_in: CorrectDecorateIn) {
 
         // We can assume that our new ~~samplers~~ variables will have a greater instruction ID than the original
         // ~~combined image samplers~~ variables.
-        let mut prev_binding = -1;
+        let mut prev_binding = None;
         let mut increment = 0;
         for (d_idx, binding) in bindings {
-            if (binding + increment) as i32 == prev_binding {
+            if Some(binding as i32) == prev_binding {
                 increment += 1;
             }
             new_spv[d_idx + 3] = binding + increment;
-            prev_binding = binding as i32;
+            prev_binding = Some(binding as i32);
         }
     }
 }
