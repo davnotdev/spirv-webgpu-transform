@@ -1,6 +1,6 @@
 use super::{
-    combimgsampsplitter, drefsplitter, isnanisinfpatch, mirrorpatch, storagecubepatch,
-    u8_slice_to_u32_vec, u32_slice_to_u8_vec,
+    combimgsampsplitter, drefsplitter, isnanisinfpatch, mirrorpatch, pruneunuseddref,
+    storagecubepatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
 };
 
 use naga::{back, front, valid};
@@ -194,3 +194,19 @@ test_with_spv_and_fn!(
     "./test/storagecubepatch/storagecube_immediate.spv",
     storagecubepatch
 );
+
+// ---
+
+// TODO: This only tests shader validity, not functionality
+test_with_spv_and_fn_no_correction![
+    pruneunuseddref_pruneunuseddref,
+    DO_ALL,
+    "./test/pruneunuseddref/pruneunuseddref.spv",
+    pruneunuseddref
+];
+test_with_spv_and_fn_no_correction![
+    pruneunuseddref_pruneunuseddref_nested,
+    DO_ALL,
+    "./test/pruneunuseddref/pruneunuseddref_nested.spv",
+    pruneunuseddref
+];

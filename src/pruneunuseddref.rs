@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn purneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
+pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 
     let instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];

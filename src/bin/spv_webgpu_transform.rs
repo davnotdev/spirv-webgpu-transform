@@ -30,7 +30,7 @@ fn main() {
         "storagecube" => {
             spirv_webgpu_transform::storagecubepatch(&spv, &mut out_correction_map).unwrap()
         }
-        "pruneunuseddref" => spirv_webgpu_transform::purneunuseddref(&spv).unwrap(),
+        "pruneunuseddref" => spirv_webgpu_transform::pruneunuseddref(&spv).unwrap(),
         mode => {
             eprintln!("unknown mode {:?}", mode);
             process::exit(1)
