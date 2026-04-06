@@ -160,7 +160,7 @@ void main() {
 - You *can* nest `imageCube` usages in functions, but this will not translate to WGSL
 - `imageCubeArray` is not supported
 
-## Unused Image Sampler Prune
+## Unused Image Sampler Pruning
 
 In ubershader configurations, it is common to have uniforms that are referenced in some variants but not others.
 If you were to declare a `uniform texture2D depth_buffer;` that is unused, the WGSL translation is always `texture_2d`.
