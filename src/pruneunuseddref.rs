@@ -3,15 +3,12 @@ use super::*;
 pub fn purneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 
-    let mut instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
+    let instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
     let magic_number = spv[SPV_HEADER_MAGIC_NUM_OFFSET];
 
     let spv_header = spv[0..SPV_HEADER_LENGTH].to_owned();
 
     assert_eq!(magic_number, SPV_HEADER_MAGIC);
-
-    // let mut instruction_inserts = vec![];
-    // let word_inserts = vec![];
 
     let spv = spv.into_iter().skip(SPV_HEADER_LENGTH).collect::<Vec<_>>();
     let mut new_spv = spv.clone();
@@ -22,10 +19,12 @@ pub fn purneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let mut op_load_idxs = vec![];
     let mut op_function_parameter_idxs = vec![];
     let mut op_function_call_idxs = vec![];
+    let mut op_decorate_idxs = vec![];
+    let mut op_name_idxs = vec![];
 
     let mut op_type_image_id_map = HashSet::new();
     let mut op_type_sampler_id_map = HashSet::new();
-    let mut op_sampled_image_ids_map = HashSet::new();
+    let mut op_sampled_image_id_map = HashSet::new();
 
     let mut spv_idx = 0;
     while spv_idx < spv.len() {
@@ -39,6 +38,8 @@ pub fn purneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             SPV_INSTRUCTION_OP_LOAD => op_load_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => op_function_parameter_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_FUNCTION_CALL => op_function_call_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_DECORATE => op_decorate_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_NAME => op_name_idxs.push(spv_idx),
 
             SPV_INSTRUCTION_OP_TYPE_IMAGE => {
                 let result_id = spv[spv_idx + 1];
@@ -51,8 +52,8 @@ pub fn purneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             SPV_INSTRUCTION_OP_SAMPLED_IMAGE => {
                 let image_id = spv[spv_idx + 3];
                 let sampler_id = spv[spv_idx + 4];
-                op_sampled_image_ids_map.insert(image_id);
-                op_sampled_image_ids_map.insert(sampler_id);
+                op_sampled_image_id_map.insert(image_id);
+                op_sampled_image_id_map.insert(sampler_id);
             }
             _ => {}
         }
@@ -92,7 +93,7 @@ pub fn purneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         .iter()
         .filter(|&idx| {
             let result_id = spv[idx + 2];
-            op_sampled_image_ids_map.contains(&result_id)
+            op_sampled_image_id_map.contains(&result_id)
         })
         .collect::<Vec<_>>();
 
@@ -132,15 +133,51 @@ pub fn purneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
         }
     }
 
-    // 7. Remove unused variables
-    println!("{:?} {:?}", variable_result_map, used_variable_idxs);
-
+    // 8. Remove unused variables
     let unused_variable_idxs = variable_result_map
         .iter()
-        .filter_map(|(id, idx)| (!used_variable_idxs.contains(id)).then_some(idx))
+        .filter_map(|(id, &idx)| (!used_variable_idxs.contains(id)).then_some(idx))
         .collect::<Vec<_>>();
 
-    println!("{:?}", unused_variable_idxs);
+    // 9. Find OpDecorate / OpName to OpVariable
+    let unused_decorate_idxs = op_decorate_idxs
+        .iter()
+        .filter(|&idx| {
+            let target = spv[idx + 1];
+            unused_variable_idxs.iter().any(|&v_idx| {
+                let result_id = spv[v_idx + 2];
+                target == result_id
+            })
+        })
+        .copied()
+        .collect::<Vec<_>>();
 
-    todo!()
+    let unused_name_idxs = op_name_idxs
+        .iter()
+        .filter(|&idx| {
+            let target = spv[idx + 1];
+            unused_variable_idxs.iter().any(|&v_idx| {
+                let result_id = spv[v_idx + 2];
+                target == result_id
+            })
+        })
+        .copied()
+        .collect::<Vec<_>>();
+
+    // 9. Remove instructions
+    for spv_idx in unused_variable_idxs
+        .into_iter()
+        .chain(unused_decorate_idxs)
+        .chain(unused_name_idxs)
+    {
+        let op = spv[spv_idx];
+        let word_count = hiword(op) as usize;
+
+        new_spv[spv_idx..spv_idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+    }
+
+    prune_noops(&mut new_spv);
+
+    // 10. Write New Header and New Code
+    Ok(fuse_final(spv_header, new_spv, instruction_bound))
 }
