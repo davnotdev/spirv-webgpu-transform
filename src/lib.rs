@@ -36,6 +36,7 @@ mod splitdref;
 mod spv;
 mod storagecubepatch;
 mod util;
+mod pruneunuseddref;
 
 #[cfg(test)]
 mod test;
