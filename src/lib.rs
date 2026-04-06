@@ -31,12 +31,12 @@ use std::collections::{HashMap, HashSet};
 mod correction;
 mod isnanisinfpatch;
 mod mirrorpatch;
+mod pruneunuseddref;
 mod splitcombined;
 mod splitdref;
 mod spv;
 mod storagecubepatch;
 mod util;
-mod pruneunuseddref;
 
 #[cfg(test)]
 mod test;
@@ -47,6 +47,7 @@ use util::*;
 pub use correction::*;
 pub use isnanisinfpatch::*;
 pub use mirrorpatch::*;
+pub use pruneunuseddref::*;
 pub use splitcombined::*;
 pub use splitdref::*;
 pub use storagecubepatch::*;

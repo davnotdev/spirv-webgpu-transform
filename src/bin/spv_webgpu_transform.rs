@@ -5,7 +5,7 @@ fn main() {
 
     if args.len() != 4 {
         eprintln!(
-            "Usage: spv_webgpu_transform <combimg|dref|isnanisinf|storagecube> <input.spv> <output.spv>"
+            "Usage: spv_webgpu_transform <combimg|dref|isnanisinf|storagecube|pruneunuseddref> <input.spv> <output.spv>"
         );
         process::exit(1);
     }
@@ -30,6 +30,7 @@ fn main() {
         "storagecube" => {
             spirv_webgpu_transform::storagecubepatch(&spv, &mut out_correction_map).unwrap()
         }
+        "pruneunuseddref" => spirv_webgpu_transform::purneunuseddref(&spv).unwrap(),
         mode => {
             eprintln!("unknown mode {:?}", mode);
             process::exit(1)
