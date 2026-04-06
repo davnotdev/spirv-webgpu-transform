@@ -13,12 +13,13 @@ This project aims to transform common but unsupported SPIRV shaders into a form 
 
 At the moment, the following transformations are supported:
 
-| Feature                   | `spirv-val` | `naga` | `tint` |
-| ------------------------- | ----------- | ------ | ------ |
-| Combined Image Samplers   | ✅          | ✅     | ✅     |
-| Mixed Depth / Comparison  | ✅          | ⚠️\*   | ❌     |
-| isnan / isinf Patching    | ✅          | ✅     | ✅     |
-| Storage Cube Patching     | ✅          | ✅     | ✅     |
+| Feature                           | `spirv-val` | `naga` | `tint` |
+| --------------------------------- | ----------- | ------ | ------ |
+| Combined Image Samplers           | ✅          | ✅     | ✅     |
+| Mixed Depth / Comparison          | ✅          | ⚠️\*   | ❌     |
+| isnan / isinf Patching            | ✅          | ✅     | ✅     |
+| Storage Cube Patching             | ✅          | ✅     | ✅     |
+| Unused Image Sampler Pruning      | ✅          | ✅     | ✅     |
 
 > \* Simple cases are OK.
 > With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
@@ -158,6 +159,25 @@ void main() {
 
 - You *can* nest `imageCube` usages in functions, but this will not translate to WGSL
 - `imageCubeArray` is not supported
+
+## Unused Image Sampler Prune
+
+In ubershader configurations, it is common to have uniforms that are referenced in some variants but not others.
+If you were to declare a `uniform texture2D depth_buffer;` that is unused, the WGSL translation is always `texture_2d`.
+However, in shaders that DO reference `depth_buffer`, you likely get a `texture_depth_2d`.
+This may cause conflicts in your bind group layouts or errors when creating bind groups.
+This patch prunes samplers and textures that are unused.
+
+### Tests
+
+| Test                          | `spirv-val` | Naga   | Tint |
+| ----------------------------- | ----------- | ------ | ---- |
+| `pruneunuseddref.frag`        | ✅          | ✅     | ✅   |
+| `pruneunuseddref_nested.frag` | ✅          | ✅     | ✅   |
+
+### Additional Notes
+
+- Does not operate on combined image samplers
 
 ## Library Usage
 
