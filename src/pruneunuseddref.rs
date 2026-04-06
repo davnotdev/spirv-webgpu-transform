@@ -15,6 +15,7 @@ pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
 
     // 1. Find locations instructions we need
     let mut op_type_pointer_idxs = vec![];
+    let mut op_type_image_idxs = vec![];
     let mut op_variable_idxs = vec![];
     let mut op_load_idxs = vec![];
     let mut op_function_parameter_idxs = vec![];
@@ -22,7 +23,6 @@ pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     let mut op_decorate_idxs = vec![];
     let mut op_name_idxs = vec![];
 
-    let mut op_type_image_id_map = HashSet::new();
     let mut op_type_sampler_id_map = HashSet::new();
     let mut op_sampled_image_id_map = HashSet::new();
 
@@ -34,6 +34,7 @@ pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
 
         match instruction {
             SPV_INSTRUCTION_OP_TYPE_POINTER => op_type_pointer_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_TYPE_IMAGE => op_type_image_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_VARIABLE => op_variable_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_LOAD => op_load_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => op_function_parameter_idxs.push(spv_idx),
@@ -41,10 +42,6 @@ pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             SPV_INSTRUCTION_OP_DECORATE => op_decorate_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_NAME => op_name_idxs.push(spv_idx),
 
-            SPV_INSTRUCTION_OP_TYPE_IMAGE => {
-                let result_id = spv[spv_idx + 1];
-                op_type_image_id_map.insert(result_id);
-            }
             SPV_INSTRUCTION_OP_TYPE_SAMPLER => {
                 let result_id = spv[spv_idx + 1];
                 op_type_sampler_id_map.insert(result_id);
@@ -62,18 +59,32 @@ pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
     }
 
     // 2. Find all OpTypePointer to OpTypeImage and OpTypeSampler
-    let tp_func = |map: &HashSet<u32>, tp_idx| {
-        let result_id = spv[tp_idx + 1];
-        let underlying_type_id = spv[tp_idx + 3];
-        map.contains(&underlying_type_id).then_some(result_id)
-    };
     let image_type_pointers_map = op_type_pointer_idxs
         .iter()
-        .filter_map(|&tp_idx| tp_func(&op_type_image_id_map, tp_idx))
+        .filter_map(|&tp_idx| {
+            let result_id = spv[tp_idx + 1];
+            let underlying_type_id = spv[tp_idx + 3];
+            op_type_image_idxs
+                .iter()
+                .any(|ti_idx| {
+                    let type_id = spv[ti_idx + 1];
+                    let image_sampled = spv[ti_idx + 7];
+
+                    // `!= 2` filters for storage textures which shouldn't be pruned. 
+                    image_sampled != 2 && type_id == underlying_type_id
+                })
+                .then_some(result_id)
+        })
         .collect::<HashSet<_>>();
     let sampler_type_pointers_map = op_type_pointer_idxs
         .iter()
-        .filter_map(|&tp_idx| tp_func(&op_type_sampler_id_map, tp_idx))
+        .filter_map(|&tp_idx| {
+            let result_id = spv[tp_idx + 1];
+            let underlying_type_id = spv[tp_idx + 3];
+            op_type_sampler_id_map
+                .contains(&underlying_type_id)
+                .then_some(result_id)
+        })
         .collect::<HashSet<_>>();
 
     // 3. Final all OpVariable to OpTypePointers

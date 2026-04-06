@@ -170,14 +170,16 @@ This patch prunes samplers and textures that are unused.
 
 ### Tests
 
-| Test                          | `spirv-val` | Naga   | Tint |
-| ----------------------------- | ----------- | ------ | ---- |
-| `pruneunuseddref.frag`        | ✅          | ✅     | ✅   |
-| `pruneunuseddref_nested.frag` | ✅          | ✅     | ✅   |
+| Test                           | `spirv-val` | Naga   | Tint |
+| ------------------------------ | ----------- | ------ | ---- |
+| `pruneunuseddref.frag`         | ✅          | ✅     | ✅   |
+| `pruneunuseddref_nested.frag`  | ✅          | ✅     | ✅   |
+| `pruneunuseddref_storage.frag` | ✅          | ✅     | ✅   |
 
 ### Additional Notes
 
-- Does not operate on combined image samplers
+- Does not prune combined image samplers
+- Does not prune storage textures since they are separate category of texture
 
 ## Library Usage
 

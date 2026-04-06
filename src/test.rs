@@ -210,3 +210,9 @@ test_with_spv_and_fn_no_correction![
     "./test/pruneunuseddref/pruneunuseddref_nested.spv",
     pruneunuseddref
 ];
+test_with_spv_and_fn_no_correction![
+    pruneunuseddref_pruneunuseddref_storage,
+    DO_ALL,
+    "./test/pruneunuseddref/pruneunuseddref_storage.spv",
+    pruneunuseddref
+];
