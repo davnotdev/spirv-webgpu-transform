@@ -5,4 +5,4 @@ set -e
 (cd mirrorpatch; ./compile.sh)
 (cd isnanisinfpatch; ./compile.sh)
 (cd storagecubepatch; ./compile.sh)
-
+(cd pruneunuseddref; ./compile.sh)
