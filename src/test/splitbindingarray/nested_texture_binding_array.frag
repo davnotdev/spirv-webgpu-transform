@@ -1,0 +1,25 @@
+#version 440
+
+#define MAX_TEXTURES 8
+
+layout(location = 0) out vec4 o_color;
+
+layout(set = 0, binding = 0) uniform texture2D u_textures[MAX_TEXTURES];
+layout(set = 0, binding = 1) uniform sampler u_sampler;
+
+void process(texture2D textures[MAX_TEXTURES]) {
+    for (int i = 0; i < MAX_TEXTURES; i++) {
+        o_color += texture(sampler2D(textures[i], u_sampler), vec2(0.0, 0.0));
+    }
+}
+
+void process2(texture2D textures[MAX_TEXTURES]) {
+    process(textures);
+}
+
+void main() {
+    o_color = vec4(0.0);
+    process(u_textures);
+    process2(u_textures);
+}
+
