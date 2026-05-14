@@ -1,9 +1,9 @@
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffectedDecoration {
     pub original_res_id: u32,
-    pub new_res_id: u32,
+    pub new_res_ids: Vec<u32>,
     pub correction_type: CorrectionType,
 }
 
@@ -62,21 +62,23 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
         affected_variables.iter().for_each(
             |AffectedDecoration {
                  original_res_id,
-                 new_res_id,
+                 new_res_ids,
                  correction_type,
              }| {
                 if *original_res_id == target_id {
-                    if decoration_id == SPV_DECORATION_BINDING {
-                        new_variable_id_to_decorations
-                            .entry((new_res_id, correction_type))
-                            .or_insert((None, None))
-                            .0 = Some((d_idx, decoration_value));
-                    } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
-                        new_variable_id_to_decorations
-                            .entry((new_res_id, correction_type))
-                            .or_insert((None, None))
-                            .1 = Some((d_idx, decoration_value));
-                        descriptor_sets_to_correct.insert(decoration_value);
+                    for new_res_id in new_res_ids {
+                        if decoration_id == SPV_DECORATION_BINDING {
+                            new_variable_id_to_decorations
+                                .entry((new_res_id, correction_type))
+                                .or_insert((None, None))
+                                .0 = Some((d_idx, decoration_value));
+                        } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
+                            new_variable_id_to_decorations
+                                .entry((new_res_id, correction_type))
+                                .or_insert((None, None))
+                                .1 = Some((d_idx, decoration_value));
+                            descriptor_sets_to_correct.insert(decoration_value);
+                        }
                     }
                 }
             },

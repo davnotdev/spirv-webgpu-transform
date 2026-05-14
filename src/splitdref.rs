@@ -552,7 +552,7 @@ pub fn drefsplitter(
 
         affected_variables.push(AffectedDecoration {
             original_res_id: spv[variable_idx + 2],
-            new_res_id: new_variable_id,
+            new_res_ids: vec![new_variable_id],
             correction_type: match complement_ty {
                 OperationVariant::Regular => CorrectionType::SplitDrefRegular,
                 OperationVariant::Dref => CorrectionType::SplitDrefComparison,
