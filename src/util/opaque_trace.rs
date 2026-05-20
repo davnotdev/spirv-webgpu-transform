@@ -77,7 +77,21 @@ pub enum RawImageOp {
     // TODO: Image Query Capability
 }
 
-pub enum SampledImageOp {
+impl RawImageOp {
+    pub fn result_type_and_id(&self, spv: &[u32]) -> (u32, u32) {
+        let idx = match self {
+            RawImageOp::Fetch(i) | RawImageOp::Gather(i) | RawImageOp::DrefGather(i) => *i,
+        };
+        (spv[idx + 1], spv[idx + 2])
+    }
+}
+
+pub struct SampledImageOp {
+    pub idx: usize,
+    pub next: SampledImageVariant,
+}
+
+pub enum SampledImageVariant {
     SampleImplicitLod(usize),
     SampleExplicitLod(usize),
     SampleDrefImplicitLod(usize),
@@ -92,12 +106,43 @@ pub enum SampledImageOp {
     // TODO: Sparse Residency Capability
 }
 
+impl SampledImageVariant {
+    pub fn result(&self, spv: &[u32]) -> (u32, u32) {
+        let idx = match self {
+            SampledImageVariant::SampleImplicitLod(i)
+            | SampledImageVariant::SampleExplicitLod(i)
+            | SampledImageVariant::SampleDrefImplicitLod(i)
+            | SampledImageVariant::SampleDrefExplicitLod(i)
+            | SampledImageVariant::SampleProjImplicitLod(i)
+            | SampledImageVariant::SampleProjExplicitLod(i)
+            | SampledImageVariant::SampleProjDrefImplicitLod(i)
+            | SampledImageVariant::SampleProjDrefExplicitLod(i)
+            | SampledImageVariant::Gather(i)
+            | SampledImageVariant::DrefGather(i) => *i,
+        };
+        (spv[idx + 1], spv[idx + 2])
+    }
+}
+
 pub enum StorageTextureOp {
     Read(usize),
     Write(usize),
     SparseRead(usize),
     TexelPointer(usize),
     // TODO: Image Query Capability
+}
+
+impl StorageTextureOp {
+    // OpImageWrite has no result; all other storage ops do.
+    pub fn result(&self, spv: &[u32]) -> Option<(u32, u32)> {
+        let idx = match self {
+            StorageTextureOp::Read(i)
+            | StorageTextureOp::SparseRead(i)
+            | StorageTextureOp::TexelPointer(i) => *i,
+            StorageTextureOp::Write(_) => return None,
+        };
+        Some((spv[idx + 1], spv[idx + 2]))
+    }
 }
 
 // Generally, spv[idx + 1] => result type, spv[idx + 2] => result, spv[idx + 3] => image / sampled image
@@ -176,57 +221,133 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
         }
     }
 
-    let sampled_image_result_ids: Vec<u32> = op_sampled_image_idxs
+    // (result_id, sampled_image_idx) for OpSampledImage nodes rooted at our loads
+    let sampled_image_entries: Vec<(u32, usize)> = op_sampled_image_idxs
         .iter()
         .filter(|&&idx| load_result_ids.contains(&spv[idx + 3]))
-        .map(|&idx| spv[idx + 2])
+        .map(|&idx| (spv[idx + 2], idx))
         .collect();
 
     for &(instruction, idx) in &sampled_image_op_idxs {
-        if sampled_image_result_ids.contains(&spv[idx + 3]) {
-            let op = match instruction {
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_IMPLICIT_LOD => {
-                    SampledImageOp::SampleImplicitLod(idx)
-                }
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_EXPLICIT_LOD => {
-                    SampledImageOp::SampleExplicitLod(idx)
-                }
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_DREF_IMPLICIT_LOD => {
-                    SampledImageOp::SampleDrefImplicitLod(idx)
-                }
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_DREF_EXPLICIT_LOD => {
-                    SampledImageOp::SampleDrefExplicitLod(idx)
-                }
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_IMPLICIT_LOD => {
-                    SampledImageOp::SampleProjImplicitLod(idx)
-                }
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_EXPLICIT_LOD => {
-                    SampledImageOp::SampleProjExplicitLod(idx)
-                }
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_DREF_IMPLICIT_LOD => {
-                    SampledImageOp::SampleProjDrefImplicitLod(idx)
-                }
-                SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_DREF_EXPLICIT_LOD => {
-                    SampledImageOp::SampleProjDrefExplicitLod(idx)
-                }
-                _ => unreachable!(),
-            };
-            results.push(OpaqueLoadTrace::Sampled(op));
-        }
+        let Some(&(_, si_idx)) = sampled_image_entries
+            .iter()
+            .find(|(result_id, _)| *result_id == spv[idx + 3])
+        else {
+            continue;
+        };
+        let variant = match instruction {
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_IMPLICIT_LOD => {
+                SampledImageVariant::SampleImplicitLod(idx)
+            }
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_EXPLICIT_LOD => {
+                SampledImageVariant::SampleExplicitLod(idx)
+            }
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_DREF_IMPLICIT_LOD => {
+                SampledImageVariant::SampleDrefImplicitLod(idx)
+            }
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_DREF_EXPLICIT_LOD => {
+                SampledImageVariant::SampleDrefExplicitLod(idx)
+            }
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_IMPLICIT_LOD => {
+                SampledImageVariant::SampleProjImplicitLod(idx)
+            }
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_EXPLICIT_LOD => {
+                SampledImageVariant::SampleProjExplicitLod(idx)
+            }
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_DREF_IMPLICIT_LOD => {
+                SampledImageVariant::SampleProjDrefImplicitLod(idx)
+            }
+            SPV_INSTRUCTION_OP_IMAGE_SAMPLE_PROJ_DREF_EXPLICIT_LOD => {
+                SampledImageVariant::SampleProjDrefExplicitLod(idx)
+            }
+            _ => unreachable!(),
+        };
+        results.push(OpaqueLoadTrace::Sampled(SampledImageOp {
+            idx: si_idx,
+            next: variant,
+        }));
     }
 
     for &(instruction, idx) in &raw_image_op_idxs {
-        if sampled_image_result_ids.contains(&spv[idx + 3]) {
-            let op = match instruction {
-                SPV_INSTRUCTION_OP_IMAGE_GATHER => SampledImageOp::Gather(idx),
-                SPV_INSTRUCTION_OP_IMAGE_DREF_GATHER => SampledImageOp::DrefGather(idx),
-                _ => continue,
-            };
-            results.push(OpaqueLoadTrace::Sampled(op));
-        }
+        let Some(&(_, si_idx)) = sampled_image_entries
+            .iter()
+            .find(|(result_id, _)| *result_id == spv[idx + 3])
+        else {
+            continue;
+        };
+        let variant = match instruction {
+            SPV_INSTRUCTION_OP_IMAGE_GATHER => SampledImageVariant::Gather(idx),
+            SPV_INSTRUCTION_OP_IMAGE_DREF_GATHER => SampledImageVariant::DrefGather(idx),
+            _ => continue,
+        };
+        results.push(OpaqueLoadTrace::Sampled(SampledImageOp {
+            idx: si_idx,
+            next: variant,
+        }));
     }
 
     results
+}
+
+pub fn reconstruct_opaque_trace_and_overwrite(
+    spv: &[u32],
+    new_spv: &mut [u32],
+    load_idx: usize,
+    trace: &OpaqueLoadTrace,
+) -> Vec<u32> {
+    fn take_instruction(spv: &[u32], idx: usize) -> &[u32] {
+        let word_count = hiword(spv[idx]) as usize;
+        &spv[idx..idx + word_count]
+    }
+
+    fn write_nop_instruction(new_spv: &mut [u32], idx: usize) {
+        let word_count = hiword(new_spv[idx]) as usize;
+        new_spv[idx..idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+    }
+
+    let mut out = take_instruction(spv, load_idx).to_vec();
+    write_nop_instruction(new_spv, load_idx);
+
+    match trace {
+        OpaqueLoadTrace::RawImage(op) => {
+            let op_idx = match op {
+                RawImageOp::Fetch(i) | RawImageOp::Gather(i) | RawImageOp::DrefGather(i) => *i,
+            };
+            out.extend_from_slice(take_instruction(spv, op_idx));
+            write_nop_instruction(new_spv, op_idx);
+        }
+        OpaqueLoadTrace::RawStorage(op) => {
+            let op_idx = match op {
+                StorageTextureOp::Read(i)
+                | StorageTextureOp::Write(i)
+                | StorageTextureOp::SparseRead(i)
+                | StorageTextureOp::TexelPointer(i) => *i,
+            };
+            out.extend_from_slice(take_instruction(spv, op_idx));
+            write_nop_instruction(new_spv, op_idx);
+        }
+        OpaqueLoadTrace::Sampled(SampledImageOp { idx: si_idx, next }) => {
+            out.extend_from_slice(take_instruction(spv, *si_idx));
+            write_nop_instruction(new_spv, *si_idx);
+
+            let op_idx = match next {
+                SampledImageVariant::SampleImplicitLod(i)
+                | SampledImageVariant::SampleExplicitLod(i)
+                | SampledImageVariant::SampleDrefImplicitLod(i)
+                | SampledImageVariant::SampleDrefExplicitLod(i)
+                | SampledImageVariant::SampleProjImplicitLod(i)
+                | SampledImageVariant::SampleProjExplicitLod(i)
+                | SampledImageVariant::SampleProjDrefImplicitLod(i)
+                | SampledImageVariant::SampleProjDrefExplicitLod(i)
+                | SampledImageVariant::Gather(i)
+                | SampledImageVariant::DrefGather(i) => *i,
+            };
+            out.extend_from_slice(take_instruction(spv, op_idx));
+            write_nop_instruction(new_spv, op_idx);
+        }
+    }
+
+    out
 }
 
 #[test]
@@ -282,7 +403,10 @@ fn sampled_image_implicit_lod() {
     assert_eq!(traces.len(), 1);
     assert!(matches!(
         traces[0],
-        OpaqueLoadTrace::Sampled(SampledImageOp::SampleImplicitLod(13))
+        OpaqueLoadTrace::Sampled(SampledImageOp {
+            idx: 8,
+            next: SampledImageVariant::SampleImplicitLod(13),
+        })
     ));
 }
 

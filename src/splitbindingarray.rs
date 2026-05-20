@@ -5,6 +5,10 @@ fn inc(ib: &mut u32) -> u32 {
     *ib - 1
 }
 
+// For the purposes of this patch, I consider an OpTypeImage and OpTypeSampler to be opaque.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct OpaqueArrayType;
+
 mod select_template;
 
 use select_template::*;
@@ -12,6 +16,21 @@ use select_template::*;
 /// Perform the operation on a `Vec<u32>`.
 /// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`
 /// Either update the existing `corrections` or create a new one.
+///
+/// Assumed SPIR-V properties for this patch:
+///
+/// TODO:
+/// - No nested
+/// - No additional capabilities (SparseResidency or ImageQuery)
+///
+/// wgpu Properties:
+///
+/// - The only opaque types that can be in an array are `OpTypeImage` and `OpTypeSampler`
+///
+/// SPIR-V Properties (These should always be true):
+/// - No opaque types in structures
+/// - All UBOs and SSBO hold a structure and therefore are accessed with `OpAccessChain*` first.
+///
 pub fn splitbindingarray(
     in_spv: &[u32],
     corrections: &mut Option<CorrectionMap>,
@@ -34,6 +53,9 @@ pub fn splitbindingarray(
     let mut op_type_int_idxs = vec![];
     let mut op_type_array_idxs = vec![];
     let mut op_type_pointer_idxs = vec![];
+    let mut op_type_image_idxs = vec![];
+    let mut op_type_sampler_idxs = vec![];
+    let mut op_constant_idxs = vec![];
     let mut op_variable_idxs = vec![];
     let mut op_access_chain_idxs = vec![];
     let mut op_in_bounds_access_chain_idxs = vec![];
@@ -58,6 +80,9 @@ pub fn splitbindingarray(
             SPV_INSTRUCTION_OP_TYPE_INT => op_type_int_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_ARRAY => op_type_array_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_POINTER => op_type_pointer_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_TYPE_IMAGE => op_type_image_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_TYPE_SAMPLER => op_type_sampler_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_CONSTANT => op_constant_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_VARIABLE => op_variable_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_ACCESS_CHAIN => op_access_chain_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN => {
@@ -96,6 +121,12 @@ pub fn splitbindingarray(
             let tp_storage_class = spv[tp_idx + 2];
             let tp_underlying_id = spv[tp_idx + 3];
 
+            let array_type = op_type_image_idxs
+                .iter()
+                .chain(op_type_sampler_idxs.iter())
+                .any(|&t_idx| spv[t_idx + 1] == tp_underlying_id)
+                .then_some(OpaqueArrayType);
+
             if tp_storage_class != SPV_STORAGE_CLASS_UNIFORM_CONSTANT
                 && tp_storage_class != SPV_STORAGE_CLASS_UNIFORM
             {
@@ -109,7 +140,7 @@ pub fn splitbindingarray(
 
                     ta_res_id == tp_underlying_id
                 })
-                .map(|&ta_idx| (tp_idx, ta_idx))
+                .map(|&ta_idx| (tp_idx, ta_idx, array_type))
         })
         .collect::<Vec<_>>();
 
@@ -119,15 +150,29 @@ pub fn splitbindingarray(
             let variable_type_id = spv[v_idx + 1];
             array_tp_ta_idxs
                 .iter()
-                .find(|&(tp_idx, _)| {
+                .find(|&(tp_idx, _, _)| {
                     let tp_res_id = spv[tp_idx + 1];
                     tp_res_id == variable_type_id
                 })
-                .map(|&(_, ta_idx)| (v_idx, ta_idx))
+                .map(|&(_, ta_idx, array_type)| (v_idx, ta_idx, array_type))
         })
         .collect::<Vec<_>>();
 
-    // 3. Unroll array variables
+    // 3. Build mapping of lengths
+    let length_map = array_v_ta_idxs
+        .iter()
+        .map(|(_, ta_idx, _)| {
+            let length_id = spv[ta_idx + 3];
+            let Some(length) = op_constant_idxs.iter().find_map(|&constant_idx| {
+                (spv[constant_idx + 2] == length_id).then_some(spv[constant_idx + 3])
+            }) else {
+                panic!("Missing OpConstant")
+            };
+            (ta_idx, length)
+        })
+        .collect::<HashMap<_, _>>();
+
+    // 4. Unroll array variables
     let types_header_position = last_of_indices!(op_type_int_idxs, op_type_pointer_idxs);
     let mut types_header_insert = InstructionInsert {
         previous_spv_idx: types_header_position.unwrap(),
@@ -136,7 +181,7 @@ pub fn splitbindingarray(
     let mut new_variables_map = HashMap::new();
     let mut affected_decorations = vec![];
 
-    for &(v_idx, ta_idx) in array_v_ta_idxs.iter() {
+    for &(v_idx, ta_idx, _) in array_v_ta_idxs.iter() {
         new_spv[v_idx..v_idx + hiword(spv[v_idx]) as usize]
             .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
 
@@ -148,10 +193,12 @@ pub fn splitbindingarray(
             &op_type_pointer_idxs,
             &mut instruction_bound,
             &mut new_instruction,
-            SPV_STORAGE_CLASS_UNIFORM_CONSTANT,
+            SPV_STORAGE_CLASS_UNIFORM,
             underlying_type_id,
         );
-        let length = spv[ta_idx + 3];
+
+        let length = length_map[&ta_idx];
+
         let base_id = instruction_bound;
         instruction_bound += length;
 
@@ -160,7 +207,7 @@ pub fn splitbindingarray(
                 encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
                 type_pointer_id,
                 base_id + i,
-                SPV_STORAGE_CLASS_UNIFORM_CONSTANT,
+                SPV_STORAGE_CLASS_UNIFORM,
             ]);
         }
         // Ordering issues with this, let's keep it after all other type pointers.
@@ -182,70 +229,95 @@ pub fn splitbindingarray(
     }
 
     // 5. Replace OpAccessChain with selection function
-    for (ac_idx, v_idx, ta_idx) in op_access_chain_idxs
+    for (ac_idx, v_idx, ta_idx, array_type) in op_access_chain_idxs
         .iter()
         .chain(op_in_bounds_access_chain_idxs.iter())
         .filter_map(|&ac_idx| {
             let base_id = spv[ac_idx + 3];
             array_v_ta_idxs
                 .iter()
-                .find(|&(v_idx, _)| {
+                .find(|&(v_idx, _, _)| {
                     let result_id = spv[*v_idx + 2];
                     result_id == base_id
                 })
-                .map(|(v_idx, ta_idx)| (ac_idx, v_idx, ta_idx))
+                .map(|(v_idx, ta_idx, array_type)| (ac_idx, v_idx, ta_idx, array_type))
         })
     {
-        new_spv[ac_idx..ac_idx + hiword(spv[ac_idx]) as usize]
-            .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+        let ac_word_count = hiword(spv[ac_idx]) as usize;
+        new_spv[ac_idx..ac_idx + ac_word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
 
         let old_result_id = spv[ac_idx + 2];
         let index_0_id = spv[ac_idx + 4];
-        let length = spv[ta_idx + 3];
+
+        let length = length_map[&ta_idx];
 
         let base_id = new_variables_map[v_idx];
 
-        // Find all dependent operations afterwards and replace each instruction with index switch
-        for &spv_idx in op_load_idxs
-            .iter()
-            .chain(op_store_idxs.iter())
-            .chain(op_access_chain_idxs.iter())
-            .chain(op_in_bounds_access_chain_idxs.iter())
-            .chain(op_copy_memory_idxs.iter())
-        {
-            let word_count = hiword(spv[spv_idx]) as usize;
-            let instruction = loword(spv[spv_idx]);
+        if let Some(OpaqueArrayType) = *array_type {
+            // TODO: If opaque, figure out the chain of dependent instructions.
+            todo!()
+        } else {
+            // For concreate types, find all dependent operations afterwards and replace each instruction with index switch
+            for &spv_idx in op_load_idxs
+                .iter()
+                .chain(op_store_idxs.iter())
+                .chain(op_access_chain_idxs.iter())
+                .chain(op_in_bounds_access_chain_idxs.iter())
+                .chain(op_copy_memory_idxs.iter())
+            {
+                let word_count = hiword(spv[spv_idx]) as usize;
+                let instruction = loword(spv[spv_idx]);
 
-            let source_offset = match instruction {
-                SPV_INSTRUCTION_OP_STORE | SPV_INSTRUCTION_OP_COPY_MEMORY => 2,
-                SPV_INSTRUCTION_OP_LOAD
-                | SPV_INSTRUCTION_OP_ACCESS_CHAIN
-                | SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN => 3,
-                _ => unreachable!("Unexpected instruction {} while matching", instruction),
-            };
+                let is_dependent = match instruction {
+                    SPV_INSTRUCTION_OP_STORE | SPV_INSTRUCTION_OP_COPY_MEMORY => {
+                        // We need to handle cases where buffers are stored from and to.
+                        let source_id = spv[spv_idx + 1];
+                        let dest_id = spv[spv_idx + 2];
+                        source_id == old_result_id || dest_id == old_result_id
+                    }
+                    SPV_INSTRUCTION_OP_LOAD
+                    | SPV_INSTRUCTION_OP_ACCESS_CHAIN
+                    | SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN => {
+                        let source_id = spv[spv_idx + 3];
+                        source_id == old_result_id
+                    }
+                    _ => unreachable!("Unexpected instruction {} while matching", instruction),
+                };
 
-            let source_id = spv[spv_idx + source_offset];
-            if source_id == old_result_id && ac_idx != spv_idx {
-                if instruction == SPV_INSTRUCTION_OP_ACCESS_CHAIN
-                    || instruction == SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN
-                {
-                    unimplemented!(
-                        "Nested OpAccessChain / OpInBoundsAccessChain on binding array (Unimplemented)"
+                if is_dependent && ac_idx != spv_idx {
+                    if instruction == SPV_INSTRUCTION_OP_ACCESS_CHAIN
+                        || instruction == SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN
+                    {
+                        unimplemented!(
+                            "Nested OpAccessChain / OpInBoundsAccessChain on binding array (Unimplemented)"
+                        );
+                    }
+
+                    // We don't want to fully overwrite the access chain since UBOs and SSBOs
+                    // accesses will always be followed by these.
+                    let mut new_instructions = [
+                        &spv[ac_idx..ac_idx + 4],
+                        &spv[ac_idx + 5..ac_idx + ac_word_count],
+                        &spv[spv_idx..spv_idx + word_count],
+                    ]
+                    .concat();
+                    new_instructions[0] =
+                        encode_word(ac_word_count as u16 - 1, SPV_INSTRUCTION_OP_ACCESS_CHAIN);
+
+                    new_spv[spv_idx..spv_idx + word_count]
+                        .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+                    let switch = select_template_spv(
+                        &mut instruction_bound,
+                        base_id,
+                        index_0_id,
+                        &new_instructions,
+                        length as usize,
                     );
+                    instruction_inserts.push(InstructionInsert {
+                        previous_spv_idx: spv_idx,
+                        instruction: switch,
+                    });
                 }
-
-                new_spv[spv_idx..spv_idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
-                let switch = select_template_spv(
-                    &mut instruction_bound,
-                    index_0_id,
-                    base_id,
-                    &spv[spv_idx..spv_idx + word_count],
-                    length as usize,
-                );
-                instruction_inserts.push(InstructionInsert {
-                    previous_spv_idx: spv_idx,
-                    instruction: switch,
-                });
             }
         }
     }

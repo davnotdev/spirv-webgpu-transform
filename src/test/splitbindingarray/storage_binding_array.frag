@@ -14,6 +14,7 @@ void main() {
     for (int i = 0; i < MAX_THINGS; i++) {
         o_color += u_things[i].thing1;
         o_color.x += u_things[i].thing2;
+        u_things[i].thing2 *= 2.0;
     }
 }
 
