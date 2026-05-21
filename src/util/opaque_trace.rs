@@ -64,12 +64,30 @@ use super::*;
 // separately, we can get away with a tree, or just a `struct`
 //
 
-pub enum OpaqueLoadTrace {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OpaqueLoadTrace {
+    pub load_idx: usize,
+    pub next: OpaqueImageOp,
+}
+
+impl OpaqueLoadTrace {
+    pub fn last_result_id(&self) -> usize {
+        match self.next {
+            OpaqueImageOp::RawImage(raw_image_op) => raw_image_op.result_idx(),
+            OpaqueImageOp::RawStorage(storage_texture_op) => storage_texture_op.result_idx(),
+            OpaqueImageOp::Sampled(sampled_image_op) => sampled_image_op.next.result_idx(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpaqueImageOp {
     RawImage(RawImageOp),
     RawStorage(StorageTextureOp),
     Sampled(SampledImageOp),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RawImageOp {
     Fetch(usize),
     Gather(usize),
@@ -78,19 +96,20 @@ pub enum RawImageOp {
 }
 
 impl RawImageOp {
-    pub fn result_type_and_id(&self, spv: &[u32]) -> (u32, u32) {
-        let idx = match self {
+    pub fn result_idx(&self) -> usize {
+        match self {
             RawImageOp::Fetch(i) | RawImageOp::Gather(i) | RawImageOp::DrefGather(i) => *i,
-        };
-        (spv[idx + 1], spv[idx + 2])
+        }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SampledImageOp {
     pub idx: usize,
     pub next: SampledImageVariant,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SampledImageVariant {
     SampleImplicitLod(usize),
     SampleExplicitLod(usize),
@@ -107,8 +126,8 @@ pub enum SampledImageVariant {
 }
 
 impl SampledImageVariant {
-    pub fn result(&self, spv: &[u32]) -> (u32, u32) {
-        let idx = match self {
+    pub fn result_idx(&self) -> usize {
+        match self {
             SampledImageVariant::SampleImplicitLod(i)
             | SampledImageVariant::SampleExplicitLod(i)
             | SampledImageVariant::SampleDrefImplicitLod(i)
@@ -119,11 +138,11 @@ impl SampledImageVariant {
             | SampledImageVariant::SampleProjDrefExplicitLod(i)
             | SampledImageVariant::Gather(i)
             | SampledImageVariant::DrefGather(i) => *i,
-        };
-        (spv[idx + 1], spv[idx + 2])
+        }
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StorageTextureOp {
     Read(usize),
     Write(usize),
@@ -134,19 +153,19 @@ pub enum StorageTextureOp {
 
 impl StorageTextureOp {
     // OpImageWrite has no result; all other storage ops do.
-    pub fn result(&self, spv: &[u32]) -> Option<(u32, u32)> {
-        let idx = match self {
+    pub fn result_idx(&self) -> usize {
+        match self {
             StorageTextureOp::Read(i)
             | StorageTextureOp::SparseRead(i)
-            | StorageTextureOp::TexelPointer(i) => *i,
-            StorageTextureOp::Write(_) => return None,
-        };
-        Some((spv[idx + 1], spv[idx + 2]))
+            | StorageTextureOp::TexelPointer(i)
+            | StorageTextureOp::Write(i) => *i,
+        }
     }
 }
 
 // Generally, spv[idx + 1] => result type, spv[idx + 2] => result, spv[idx + 3] => image / sampled image
 pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadTrace> {
+    // TODO: Memoize, we can do better than this.
     let mut op_sampled_image_idxs = vec![];
     let mut raw_image_op_idxs: Vec<(u16, usize)> = vec![];
     let mut sampled_image_op_idxs: Vec<(u16, usize)> = vec![];
@@ -187,19 +206,26 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
         spv_idx += word_count;
     }
 
-    let load_result_ids: Vec<u32> = load_idxs.iter().map(|&idx| spv[idx + 2]).collect();
+    let load_result_ids = load_idxs
+        .iter()
+        .map(|&idx| (spv[idx + 2], idx))
+        .collect::<HashMap<_, _>>();
 
     let mut results = vec![];
 
     for &(instruction, idx) in &raw_image_op_idxs {
-        if load_result_ids.contains(&spv[idx + 3]) {
+        let loaded_image_id = spv[idx + 3];
+        if let Some(&load_idx) = load_result_ids.get(&loaded_image_id) {
             let op = match instruction {
                 SPV_INSTRUCTION_OP_IMAGE_FETCH => RawImageOp::Fetch(idx),
                 SPV_INSTRUCTION_OP_IMAGE_GATHER => RawImageOp::Gather(idx),
                 SPV_INSTRUCTION_OP_IMAGE_DREF_GATHER => RawImageOp::DrefGather(idx),
                 _ => unreachable!(),
             };
-            results.push(OpaqueLoadTrace::RawImage(op));
+            results.push(OpaqueLoadTrace {
+                load_idx,
+                next: OpaqueImageOp::RawImage(op),
+            });
         }
     }
 
@@ -209,7 +235,7 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
         } else {
             spv[idx + 3]
         };
-        if load_result_ids.contains(&image_id) {
+        if let Some(&load_idx) = load_result_ids.get(&image_id) {
             let op = match instruction {
                 SPV_INSTRUCTION_OP_IMAGE_READ => StorageTextureOp::Read(idx),
                 SPV_INSTRUCTION_OP_IMAGE_WRITE => StorageTextureOp::Write(idx),
@@ -217,21 +243,31 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
                 SPV_INSTRUCTION_OP_IMAGE_TEXEL_POINTER => StorageTextureOp::TexelPointer(idx),
                 _ => unreachable!(),
             };
-            results.push(OpaqueLoadTrace::RawStorage(op));
+            results.push(OpaqueLoadTrace {
+                load_idx,
+                next: OpaqueImageOp::RawStorage(op),
+            });
         }
     }
 
     // (result_id, sampled_image_idx) for OpSampledImage nodes rooted at our loads
-    let sampled_image_entries: Vec<(u32, usize)> = op_sampled_image_idxs
+    let sampled_image_entries = op_sampled_image_idxs
         .iter()
-        .filter(|&&idx| load_result_ids.contains(&spv[idx + 3]))
-        .map(|&idx| (spv[idx + 2], idx))
-        .collect();
+        .filter_map(|&idx| {
+            load_result_ids
+                .get(&spv[idx + 3])
+                .copied()
+                .map(|load_idx| (idx, load_idx))
+        })
+        .map(|(idx, load_idx)| (spv[idx + 2], idx, load_idx))
+        .collect::<Vec<_>>();
 
-    for &(instruction, idx) in &sampled_image_op_idxs {
-        let Some(&(_, si_idx)) = sampled_image_entries
-            .iter()
-            .find(|(result_id, _)| *result_id == spv[idx + 3])
+    for &(instruction, idx) in sampled_image_op_idxs.iter() {
+        let Some(&(_, si_idx, load_idx)) =
+            sampled_image_entries.iter().find(|(result_id, _, _)| {
+                let loaded_image_id = spv[idx + 3];
+                *result_id == loaded_image_id
+            })
         else {
             continue;
         };
@@ -262,16 +298,21 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
             }
             _ => unreachable!(),
         };
-        results.push(OpaqueLoadTrace::Sampled(SampledImageOp {
-            idx: si_idx,
-            next: variant,
-        }));
+        results.push(OpaqueLoadTrace {
+            load_idx,
+            next: OpaqueImageOp::Sampled(SampledImageOp {
+                idx: si_idx,
+                next: variant,
+            }),
+        });
     }
 
     for &(instruction, idx) in &raw_image_op_idxs {
-        let Some(&(_, si_idx)) = sampled_image_entries
-            .iter()
-            .find(|(result_id, _)| *result_id == spv[idx + 3])
+        let Some(&(_, si_idx, load_idx)) =
+            sampled_image_entries.iter().find(|(result_id, _, _)| {
+                let loaded_image_id = spv[idx + 3];
+                *result_id == loaded_image_id
+            })
         else {
             continue;
         };
@@ -280,10 +321,13 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
             SPV_INSTRUCTION_OP_IMAGE_DREF_GATHER => SampledImageVariant::DrefGather(idx),
             _ => continue,
         };
-        results.push(OpaqueLoadTrace::Sampled(SampledImageOp {
-            idx: si_idx,
-            next: variant,
-        }));
+        results.push(OpaqueLoadTrace {
+            load_idx,
+            next: OpaqueImageOp::Sampled(SampledImageOp {
+                idx: si_idx,
+                next: variant,
+            }),
+        });
     }
 
     results
@@ -292,7 +336,6 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
 pub fn reconstruct_opaque_trace_and_overwrite(
     spv: &[u32],
     new_spv: &mut [u32],
-    load_idx: usize,
     trace: &OpaqueLoadTrace,
 ) -> Vec<u32> {
     fn take_instruction(spv: &[u32], idx: usize) -> &[u32] {
@@ -305,18 +348,18 @@ pub fn reconstruct_opaque_trace_and_overwrite(
         new_spv[idx..idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
     }
 
-    let mut out = take_instruction(spv, load_idx).to_vec();
-    write_nop_instruction(new_spv, load_idx);
+    let mut out = take_instruction(spv, trace.load_idx).to_vec();
+    write_nop_instruction(new_spv, trace.load_idx);
 
-    match trace {
-        OpaqueLoadTrace::RawImage(op) => {
+    match &trace.next {
+        OpaqueImageOp::RawImage(op) => {
             let op_idx = match op {
                 RawImageOp::Fetch(i) | RawImageOp::Gather(i) | RawImageOp::DrefGather(i) => *i,
             };
             out.extend_from_slice(take_instruction(spv, op_idx));
             write_nop_instruction(new_spv, op_idx);
         }
-        OpaqueLoadTrace::RawStorage(op) => {
+        OpaqueImageOp::RawStorage(op) => {
             let op_idx = match op {
                 StorageTextureOp::Read(i)
                 | StorageTextureOp::Write(i)
@@ -326,7 +369,7 @@ pub fn reconstruct_opaque_trace_and_overwrite(
             out.extend_from_slice(take_instruction(spv, op_idx));
             write_nop_instruction(new_spv, op_idx);
         }
-        OpaqueLoadTrace::Sampled(SampledImageOp { idx: si_idx, next }) => {
+        OpaqueImageOp::Sampled(SampledImageOp { idx: si_idx, next }) => {
             out.extend_from_slice(take_instruction(spv, *si_idx));
             write_nop_instruction(new_spv, *si_idx);
 
@@ -369,7 +412,10 @@ fn raw_image_fetch() {
     assert_eq!(traces.len(), 1);
     assert!(matches!(
         traces[0],
-        OpaqueLoadTrace::RawImage(RawImageOp::Fetch(4))
+        OpaqueLoadTrace {
+            load_idx: 0,
+            next: OpaqueImageOp::RawImage(RawImageOp::Fetch(4))
+        }
     ));
 }
 
@@ -403,10 +449,13 @@ fn sampled_image_implicit_lod() {
     assert_eq!(traces.len(), 1);
     assert!(matches!(
         traces[0],
-        OpaqueLoadTrace::Sampled(SampledImageOp {
-            idx: 8,
-            next: SampledImageVariant::SampleImplicitLod(13),
-        })
+        OpaqueLoadTrace {
+            load_idx: 0,
+            next: OpaqueImageOp::Sampled(SampledImageOp {
+                idx: 8,
+                next: SampledImageVariant::SampleImplicitLod(13),
+            })
+        }
     ));
 }
 
@@ -428,6 +477,9 @@ fn storage_image_write() {
     assert_eq!(traces.len(), 1);
     assert!(matches!(
         traces[0],
-        OpaqueLoadTrace::RawStorage(StorageTextureOp::Write(4))
+        OpaqueLoadTrace {
+            load_idx: 0,
+            next: OpaqueImageOp::RawStorage(StorageTextureOp::Write(4))
+        }
     ));
 }

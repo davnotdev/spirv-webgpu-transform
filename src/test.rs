@@ -1,6 +1,6 @@
 use super::{
     combimgsampsplitter, drefsplitter, immediatespatch, isnanisinfpatch, mirrorpatch,
-    pruneunuseddref, storagecubepatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
+    pruneunuseddref, splitbindingarray, storagecubepatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
 };
 
 use naga::{back, front, valid};
@@ -222,6 +222,7 @@ test_with_spv_and_fn_no_correction![
 ];
 
 // ---
+
 test_with_spv_and_fn_no_correction![
     immediatespatch_immediatespatch_immediates,
     DO_ALL,
@@ -253,4 +254,25 @@ test_with_spv_and_fn_no_correction![
     DO_ALL,
     "./test/immediatespatch/row_major.spv",
     immediatespatch
+];
+
+// ---
+
+test_with_spv_and_fn![
+    splitbinding_splitbinding_buffer_binding_array,
+    DO_ALL,
+    "./test/splitbindingarray/buffer_binding_array.spv",
+    splitbindingarray
+];
+test_with_spv_and_fn![
+    splitbinding_splitbinding_storage_binding_array,
+    DO_ALL,
+    "./test/splitbindingarray/storage_binding_array.spv",
+    splitbindingarray
+];
+test_with_spv_and_fn![
+    splitbinding_splitbinding_texture_binding_array,
+    DO_ALL,
+    "./test/splitbindingarray/texture_binding_array.spv",
+    splitbindingarray
 ];

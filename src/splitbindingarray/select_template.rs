@@ -1,11 +1,13 @@
 use super::*;
 
-// Take the following instructions:
-// OpLoad, OpStore, OpAccessChain, OpInBoundsAccessChain, OpCopyMemory
-// (i)              (i)            (i)
+// Take the any chain of instructions with the following form:
+// OpSomething %result_type_id %result_id %input ...
 //
 // The instruction's source, `[idx+2]` is replaced with `%base_id+N`
 // and duplicated for each case of the index, see template below.
+//
+// Write instructions are specially checked for because they follow a different convention:
+// OpStore, OpCopyMemory, OpImageWrite
 //
 // `flip_store_into` specifically changes `%a = %result` to `%result = %a`
 //
@@ -53,11 +55,10 @@ pub(super) fn select_template_spv(
 
     let last_j = instruction_offsets.len() - 1;
     let last_off = instruction_offsets[last_j];
-    let returns_result = matches!(
+
+    let returns_result = !matches!(
         loword(switch_instructions[last_off]),
-        SPV_INSTRUCTION_OP_LOAD
-            | SPV_INSTRUCTION_OP_ACCESS_CHAIN
-            | SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN
+        SPV_INSTRUCTION_OP_STORE | SPV_INSTRUCTION_OP_IMAGE_WRITE | SPV_INSTRUCTION_OP_COPY_MEMORY
     );
 
     let case_labels = (0..length).map(|_| inc(ib)).collect::<Vec<u32>>();

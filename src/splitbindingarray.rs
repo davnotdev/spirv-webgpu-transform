@@ -121,12 +121,6 @@ pub fn splitbindingarray(
             let tp_storage_class = spv[tp_idx + 2];
             let tp_underlying_id = spv[tp_idx + 3];
 
-            let array_type = op_type_image_idxs
-                .iter()
-                .chain(op_type_sampler_idxs.iter())
-                .any(|&t_idx| spv[t_idx + 1] == tp_underlying_id)
-                .then_some(OpaqueArrayType);
-
             if tp_storage_class != SPV_STORAGE_CLASS_UNIFORM_CONSTANT
                 && tp_storage_class != SPV_STORAGE_CLASS_UNIFORM
             {
@@ -140,7 +134,15 @@ pub fn splitbindingarray(
 
                     ta_res_id == tp_underlying_id
                 })
-                .map(|&ta_idx| (tp_idx, ta_idx, array_type))
+                .map(|&ta_idx| {
+                    let array_type = op_type_image_idxs
+                        .iter()
+                        .chain(op_type_sampler_idxs.iter())
+                        .any(|&t_idx| spv[t_idx + 1] == spv[ta_idx + 2])
+                        .then_some(OpaqueArrayType);
+
+                    (tp_idx, ta_idx, array_type)
+                })
         })
         .collect::<Vec<_>>();
 
@@ -181,7 +183,7 @@ pub fn splitbindingarray(
     let mut new_variables_map = HashMap::new();
     let mut affected_decorations = vec![];
 
-    for &(v_idx, ta_idx, _) in array_v_ta_idxs.iter() {
+    for &(v_idx, ta_idx, array_type) in array_v_ta_idxs.iter() {
         new_spv[v_idx..v_idx + hiword(spv[v_idx]) as usize]
             .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
 
@@ -193,7 +195,10 @@ pub fn splitbindingarray(
             &op_type_pointer_idxs,
             &mut instruction_bound,
             &mut new_instruction,
-            SPV_STORAGE_CLASS_UNIFORM,
+            match array_type {
+                Some(OpaqueArrayType) => SPV_STORAGE_CLASS_UNIFORM_CONSTANT,
+                _ => SPV_STORAGE_CLASS_UNIFORM,
+            },
             underlying_type_id,
         );
 
@@ -207,7 +212,10 @@ pub fn splitbindingarray(
                 encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
                 type_pointer_id,
                 base_id + i,
-                SPV_STORAGE_CLASS_UNIFORM,
+                match array_type {
+                    Some(OpaqueArrayType) => SPV_STORAGE_CLASS_UNIFORM_CONSTANT,
+                    _ => SPV_STORAGE_CLASS_UNIFORM,
+                },
             ]);
         }
         // Ordering issues with this, let's keep it after all other type pointers.
@@ -254,8 +262,31 @@ pub fn splitbindingarray(
         let base_id = new_variables_map[v_idx];
 
         if let Some(OpaqueArrayType) = *array_type {
-            // TODO: If opaque, figure out the chain of dependent instructions.
-            todo!()
+            let load_idxs = op_load_idxs
+                .iter()
+                .filter(|&idx| {
+                    let pointer = spv[idx + 3];
+                    pointer == old_result_id
+                })
+                .copied()
+                .collect::<Vec<_>>();
+            let dependent_traces = trace_loaded_opaques(&spv, &load_idxs);
+            for trace in dependent_traces {
+                let switch_instructions =
+                    reconstruct_opaque_trace_and_overwrite(&spv, &mut new_spv, &trace);
+                let switch = select_template_spv(
+                    &mut instruction_bound,
+                    base_id,
+                    index_0_id,
+                    &switch_instructions,
+                    length as usize,
+                    false,
+                );
+                instruction_inserts.push(InstructionInsert {
+                    previous_spv_idx: trace.last_result_id(),
+                    instruction: switch,
+                });
+            }
         } else {
             // For concreate types, find all dependent operations afterwards and replace each instruction with index switch
             for &spv_idx in op_load_idxs
