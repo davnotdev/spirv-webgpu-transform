@@ -7,12 +7,15 @@ use super::*;
 // The instruction's source, `[idx+2]` is replaced with `%base_id+N`
 // and duplicated for each case of the index, see template below.
 //
+// `flip_store_into` specifically changes `%a = %result` to `%result = %a`
+//
 pub(super) fn select_template_spv(
     ib: &mut u32,
     base_id: u32,
     index_id: u32,
     switch_instructions: &[u32],
     length: usize,
+    flip_store_into: bool,
 ) -> Vec<u32> {
     //
     //  TODO: You can probably decrease the instruction count with OpPhi or OpSelect.
@@ -40,9 +43,7 @@ pub(super) fn select_template_spv(
     // ; Only if there will be a result value.
     // %target_id = OpPhi %underlying_type_id %temp_0 %case_0 %temp_1 %case_1 ... %temp_N %case_N
     //
-    //
 
-    // Parse switch_instructions into per-instruction offsets
     let mut instruction_offsets = vec![];
     let mut idx = 0;
     while idx < switch_instructions.len() {
@@ -50,50 +51,58 @@ pub(super) fn select_template_spv(
         idx += hiword(switch_instructions[idx]) as usize;
     }
 
-    let instruction_returns: Vec<bool> = instruction_offsets
-        .iter()
-        .map(|&off| {
-            matches!(
-                loword(switch_instructions[off]),
-                SPV_INSTRUCTION_OP_LOAD
-                    | SPV_INSTRUCTION_OP_ACCESS_CHAIN
-                    | SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN
-            )
-        })
-        .collect();
-
     let last_j = instruction_offsets.len() - 1;
-    let returns_result = instruction_returns[last_j];
+    let last_off = instruction_offsets[last_j];
+    let returns_result = matches!(
+        loword(switch_instructions[last_off]),
+        SPV_INSTRUCTION_OP_LOAD
+            | SPV_INSTRUCTION_OP_ACCESS_CHAIN
+            | SPV_INSTRUCTION_OP_IN_BOUNDS_ACCESS_CHAIN
+    );
 
     let case_labels = (0..length).map(|_| inc(ib)).collect::<Vec<u32>>();
     let default_label = inc(ib);
     let merge_label = inc(ib);
 
-    // Per-case and default temp IDs, one slot per instruction (0 if no result)
     let case_temps: Vec<Vec<u32>> = (0..length)
         .map(|_| {
-            instruction_returns
+            instruction_offsets
                 .iter()
-                .map(|&ret| if ret { inc(ib) } else { 0 })
+                .enumerate()
+                .map(|(j, _)| {
+                    if j < last_j || returns_result {
+                        inc(ib)
+                    } else {
+                        0
+                    }
+                })
                 .collect()
         })
         .collect();
-    let default_temps: Vec<u32> = instruction_returns
+    let default_temps: Vec<u32> = instruction_offsets
         .iter()
-        .map(|&ret| if ret { inc(ib) } else { 0 })
+        .enumerate()
+        .map(|(j, _)| {
+            if j < last_j || returns_result {
+                inc(ib)
+            } else {
+                0
+            }
+        })
         .collect();
 
-    // Build the patched instruction sequence, chaining each result into the next source
     let make_instructions = |temps: &[u32], base: u32| -> Vec<u32> {
         let mut patched = switch_instructions.to_vec();
         let mut current_source = base;
         for (j, &off) in instruction_offsets.iter().enumerate() {
-            if instruction_returns[j] {
+            if j < last_j || returns_result {
                 patched[off + 2] = temps[j];
                 patched[off + 3] = current_source;
                 current_source = temps[j];
-            } else {
+            } else if flip_store_into {
                 patched[off + 2] = current_source;
+            } else {
+                patched[off + 1] = current_source;
             }
         }
         patched
@@ -130,7 +139,6 @@ pub(super) fn select_template_spv(
     ]);
 
     if returns_result {
-        let last_off = instruction_offsets[last_j];
         let result_type_id = switch_instructions[last_off + 1];
         let result_id = switch_instructions[last_off + 2];
         spv.push(encode_word(

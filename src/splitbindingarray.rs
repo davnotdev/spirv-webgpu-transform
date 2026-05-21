@@ -268,11 +268,18 @@ pub fn splitbindingarray(
                 let word_count = hiword(spv[spv_idx]) as usize;
                 let instruction = loword(spv[spv_idx]);
 
+                let mut flip_store_into = false;
                 let is_dependent = match instruction {
                     SPV_INSTRUCTION_OP_STORE | SPV_INSTRUCTION_OP_COPY_MEMORY => {
                         // We need to handle cases where buffers are stored from and to.
                         let source_id = spv[spv_idx + 1];
                         let dest_id = spv[spv_idx + 2];
+
+                        // OpStore: %result = %a
+                        if dest_id == old_result_id {
+                            flip_store_into = true;
+                        }
+
                         source_id == old_result_id || dest_id == old_result_id
                     }
                     SPV_INSTRUCTION_OP_LOAD
@@ -312,6 +319,7 @@ pub fn splitbindingarray(
                         index_0_id,
                         &new_instructions,
                         length as usize,
+                        flip_store_into,
                     );
                     instruction_inserts.push(InstructionInsert {
                         previous_spv_idx: spv_idx,
