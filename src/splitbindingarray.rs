@@ -9,8 +9,10 @@ fn inc(ib: &mut u32) -> u32 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct OpaqueArrayType;
 
+mod rechain_instructions;
 mod select_template;
 
+use rechain_instructions::*;
 use select_template::*;
 
 /// Perform the operation on a `Vec<u32>`.
@@ -68,6 +70,7 @@ pub fn splitbindingarray(
     let mut op_function_end_idxs = vec![];
     let mut op_decorate_idxs = vec![];
     let mut op_name_idxs = vec![];
+    let mut op_sampled_image_idxs = vec![];
 
     // 1. Find locations instructions we need
     let mut spv_idx = 0;
@@ -97,6 +100,7 @@ pub fn splitbindingarray(
             SPV_INSTRUCTION_OP_FUNCTION_END => op_function_end_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_DECORATE => op_decorate_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_NAME => op_name_idxs.push(spv_idx),
+            SPV_INSTRUCTION_OP_SAMPLED_IMAGE => op_sampled_image_idxs.push(spv_idx),
 
             _ => {}
         }
@@ -236,8 +240,7 @@ pub fn splitbindingarray(
         });
     }
 
-    // 5. Replace OpAccessChain with selection function
-    for (ac_idx, v_idx, ta_idx, array_type) in op_access_chain_idxs
+    let access_idxs = op_access_chain_idxs
         .iter()
         .chain(op_in_bounds_access_chain_idxs.iter())
         .filter_map(|&ac_idx| {
@@ -250,7 +253,33 @@ pub fn splitbindingarray(
                 })
                 .map(|(v_idx, ta_idx, array_type)| (ac_idx, v_idx, ta_idx, array_type))
         })
-    {
+        .collect::<Vec<_>>();
+
+    // 5. Trace array samplers into a map
+    // Arrayed samplers turn our neat trace tree into a DAG.
+    // To keep things simple, we handle samplers separately.
+    // See `opaque_trace.rs` for details.
+    let mut arrayed_sampler_map = HashMap::new();
+    for &(ac_idx, &v_idx, _, &array_type) in access_idxs.iter() {
+        let access_result_id = spv[ac_idx + 2];
+        if let Some(OpaqueArrayType) = array_type {
+            for &load_idx in op_load_idxs.iter() {
+                let result_id = spv[load_idx + 2];
+                let pointer_id = spv[load_idx + 3];
+                if pointer_id == access_result_id {
+                    for &sampled_image_idx in op_sampled_image_idxs.iter() {
+                        let sampler_id = spv[sampled_image_idx + 4];
+                        if sampler_id == result_id {
+                            arrayed_sampler_map.insert(sampled_image_idx, v_idx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. Replace OpAccessChain with selection function
+    for &(ac_idx, v_idx, ta_idx, array_type) in access_idxs.iter() {
         let ac_word_count = hiword(spv[ac_idx]) as usize;
         new_spv[ac_idx..ac_idx + ac_word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
 
@@ -272,15 +301,54 @@ pub fn splitbindingarray(
                 .collect::<Vec<_>>();
             let dependent_traces = trace_loaded_opaques(&spv, &load_idxs);
             for trace in dependent_traces {
+                let maybe_sampler_array_v_idx = match trace.next {
+                    OpaqueImageOp::Sampled(sampled_image_op) => {
+                        arrayed_sampler_map.get(&sampled_image_op.idx)
+                    }
+                    _ => None,
+                };
+
                 let switch_instructions =
                     reconstruct_opaque_trace_and_overwrite(&spv, &mut new_spv, &trace);
+                let rotate_image_sampler = matches!(
+                    trace.next,
+                    OpaqueImageOp::Sampled(SampledImageOp {
+                        parent: SampledImageParent::Sampler,
+                        ..
+                    })
+                );
+                let builder = |ib: &mut u32, target_id: u32| {
+                    if let Some(sampler_array_v_idx) = maybe_sampler_array_v_idx {
+                        // Uh oh, we have a sampler array, we will need to nest this trace further.
+                        // todo!()
+                    } else {
+                        // let (instructions, output) = rechain_instructions_with_target_id(
+                        //     ib,
+                        //     &switch_instructions,
+                        //     target_id,
+                        //     false,
+                        // );
+                        // (instructions, output.map(|(_, id)| id))
+                    }
+                    let (instructions, output) = rechain_instructions_with_target_id(
+                        ib,
+                        &switch_instructions,
+                        target_id,
+                        false,
+                        rotate_image_sampler,
+                    );
+                    (instructions, output.map(|(_, id)| id))
+                };
+
+                let underlying_type_and_target_id =
+                    get_last_instruction_result_type_and_id(&switch_instructions);
                 let switch = select_template_spv(
                     &mut instruction_bound,
                     base_id,
                     index_0_id,
-                    &switch_instructions,
                     length as usize,
-                    false,
+                    builder,
+                    underlying_type_and_target_id,
                 );
                 instruction_inserts.push(InstructionInsert {
                     previous_spv_idx: trace.last_result_id(),
@@ -344,13 +412,27 @@ pub fn splitbindingarray(
 
                     new_spv[spv_idx..spv_idx + word_count]
                         .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+
+                    let builder = &|ib: &mut u32, target_id: u32| {
+                        let (instructions, output) = rechain_instructions_with_target_id(
+                            ib,
+                            &new_instructions,
+                            target_id,
+                            flip_store_into,
+                            false,
+                        );
+                        (instructions, output.map(|(_, id)| id))
+                    };
+
+                    let underlying_type_and_target_id =
+                        get_last_instruction_result_type_and_id(&new_instructions);
                     let switch = select_template_spv(
                         &mut instruction_bound,
                         base_id,
                         index_0_id,
-                        &new_instructions,
                         length as usize,
-                        flip_store_into,
+                        builder,
+                        underlying_type_and_target_id,
                     );
                     instruction_inserts.push(InstructionInsert {
                         previous_spv_idx: spv_idx,
@@ -361,7 +443,7 @@ pub fn splitbindingarray(
         }
     }
 
-    // 6. Find OpDecorate / OpName to OpVariable
+    // 7. Find OpDecorate / OpName to OpVariable
     let unused_decorate_idxs = op_decorate_idxs
         .iter()
         .filter(|&idx| {
@@ -385,7 +467,7 @@ pub fn splitbindingarray(
         .copied()
         .collect::<Vec<_>>();
 
-    // 7. Remove Instructions that have been Whited Out.
+    // 8. Remove Instructions that have been Whited Out.
     for &spv_idx in unused_decorate_idxs.iter().chain(unused_name_idxs.iter()) {
         let op = spv[spv_idx];
         let word_count = hiword(op) as usize;
@@ -393,7 +475,7 @@ pub fn splitbindingarray(
         new_spv[spv_idx..spv_idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
     }
 
-    // 8. OpDecorate
+    // 9. OpDecorate
     let DecorateOut {
         descriptor_sets_to_correct,
     } = util::decorate(DecorateIn {
@@ -405,17 +487,17 @@ pub fn splitbindingarray(
         corrections,
     });
 
-    // 9. Insert New Instructions
+    // 10. Insert New Instructions
     instruction_inserts.insert(0, types_header_insert);
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);
 
-    // 10. Correct OpDecorate Bindings
+    // 11. Correct OpDecorate Bindings
     util::correct_decorate(CorrectDecorateIn {
         new_spv: &mut new_spv,
         descriptor_sets_to_correct,
     });
     prune_noops(&mut new_spv);
 
-    // 11. Write New Header and New Code
+    // 12. Write New Header and New Code
     Ok(fuse_final(spv_header, new_spv, instruction_bound))
 }

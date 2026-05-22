@@ -104,8 +104,15 @@ impl RawImageOp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SampledImageParent {
+    Image,
+    Sampler,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SampledImageOp {
     pub idx: usize,
+    pub parent: SampledImageParent,
     pub next: SampledImageVariant,
 }
 
@@ -250,21 +257,30 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
         }
     }
 
-    // (result_id, sampled_image_idx) for OpSampledImage nodes rooted at our loads
+    // (result_id, sampled_image_idx, load_idx, parent) for OpSampledImage nodes rooted at our loads.
     let sampled_image_entries = op_sampled_image_idxs
         .iter()
-        .filter_map(|&idx| {
-            load_result_ids
-                .get(&spv[idx + 3])
-                .copied()
-                .map(|load_idx| (idx, load_idx))
+        .filter_map(|&si_idx| {
+            let image_load = load_result_ids.get(&spv[si_idx + 3]).copied();
+            let sampler_load = load_result_ids.get(&spv[si_idx + 4]).copied();
+            match (image_load, sampler_load) {
+                (Some(_), Some(_)) => {
+                    panic!("DAG node: OpSampledImage at {si_idx} has both image and sampler from tracked loads")
+                }
+                (Some(load_idx), None) => {
+                    Some((spv[si_idx + 2], si_idx, load_idx, SampledImageParent::Image))
+                }
+                (None, Some(load_idx)) => {
+                    Some((spv[si_idx + 2], si_idx, load_idx, SampledImageParent::Sampler))
+                }
+                (None, None) => None,
+            }
         })
-        .map(|(idx, load_idx)| (spv[idx + 2], idx, load_idx))
         .collect::<Vec<_>>();
 
     for &(instruction, idx) in sampled_image_op_idxs.iter() {
-        let Some(&(_, si_idx, load_idx)) =
-            sampled_image_entries.iter().find(|(result_id, _, _)| {
+        let Some(&(_, si_idx, load_idx, parent)) =
+            sampled_image_entries.iter().find(|(result_id, _, _, _)| {
                 let loaded_image_id = spv[idx + 3];
                 *result_id == loaded_image_id
             })
@@ -302,14 +318,15 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
             load_idx,
             next: OpaqueImageOp::Sampled(SampledImageOp {
                 idx: si_idx,
+                parent,
                 next: variant,
             }),
         });
     }
 
     for &(instruction, idx) in &raw_image_op_idxs {
-        let Some(&(_, si_idx, load_idx)) =
-            sampled_image_entries.iter().find(|(result_id, _, _)| {
+        let Some(&(_, si_idx, load_idx, parent)) =
+            sampled_image_entries.iter().find(|(result_id, _, _, _)| {
                 let loaded_image_id = spv[idx + 3];
                 *result_id == loaded_image_id
             })
@@ -325,6 +342,7 @@ pub fn trace_loaded_opaques(spv: &[u32], load_idxs: &[usize]) -> Vec<OpaqueLoadT
             load_idx,
             next: OpaqueImageOp::Sampled(SampledImageOp {
                 idx: si_idx,
+                parent,
                 next: variant,
             }),
         });
@@ -369,7 +387,7 @@ pub fn reconstruct_opaque_trace_and_overwrite(
             out.extend_from_slice(take_instruction(spv, op_idx));
             write_nop_instruction(new_spv, op_idx);
         }
-        OpaqueImageOp::Sampled(SampledImageOp { idx: si_idx, next }) => {
+        OpaqueImageOp::Sampled(SampledImageOp { idx: si_idx, next, .. }) => {
             out.extend_from_slice(take_instruction(spv, *si_idx));
             write_nop_instruction(new_spv, *si_idx);
 
@@ -395,18 +413,10 @@ pub fn reconstruct_opaque_trace_and_overwrite(
 
 #[test]
 fn raw_image_fetch() {
+    #[rustfmt::skip]
     let spv: &[u32] = &[
-        // %20 = OpLoad %10 %30
-        encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-        10,
-        20,
-        30,
-        // %21 = OpImageFetch %11 %20 %40
-        encode_word(5, SPV_INSTRUCTION_OP_IMAGE_FETCH),
-        11,
-        21,
-        20,
-        40,
+        encode_word(4, SPV_INSTRUCTION_OP_LOAD), 10, 20, 30,
+        encode_word(5, SPV_INSTRUCTION_OP_IMAGE_FETCH), 11, 21, 20, 40,
     ];
     let traces = trace_loaded_opaques(spv, &[0]);
     assert_eq!(traces.len(), 1);
@@ -421,29 +431,12 @@ fn raw_image_fetch() {
 
 #[test]
 fn sampled_image_implicit_lod() {
+    #[rustfmt::skip]
     let spv: &[u32] = &[
-        // %20 = OpLoad %10 %30
-        encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-        10,
-        20,
-        30,
-        // %21 = OpLoad %11 %31
-        encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-        11,
-        21,
-        31,
-        // %22 = OpSampledImage %12 %20 %21
-        encode_word(5, SPV_INSTRUCTION_OP_SAMPLED_IMAGE),
-        12,
-        22,
-        20,
-        21,
-        // %23 = OpImageSampleImplicitLod %13 %22 %40
-        encode_word(5, SPV_INSTRUCTION_OP_IMAGE_SAMPLE_IMPLICIT_LOD),
-        13,
-        23,
-        22,
-        40,
+        encode_word(4, SPV_INSTRUCTION_OP_LOAD), 10, 20, 30,
+        encode_word(4, SPV_INSTRUCTION_OP_LOAD), 11, 21, 31,
+        encode_word(5, SPV_INSTRUCTION_OP_SAMPLED_IMAGE), 12, 22, 20, 21,
+        encode_word(5, SPV_INSTRUCTION_OP_IMAGE_SAMPLE_IMPLICIT_LOD), 13, 23, 22, 40,
     ];
     let traces = trace_loaded_opaques(spv, &[0]);
     assert_eq!(traces.len(), 1);
@@ -453,6 +446,7 @@ fn sampled_image_implicit_lod() {
             load_idx: 0,
             next: OpaqueImageOp::Sampled(SampledImageOp {
                 idx: 8,
+                parent: SampledImageParent::Image,
                 next: SampledImageVariant::SampleImplicitLod(13),
             })
         }
@@ -461,17 +455,10 @@ fn sampled_image_implicit_lod() {
 
 #[test]
 fn storage_image_write() {
+    #[rustfmt::skip]
     let spv: &[u32] = &[
-        // %20 = OpLoad %10 %30
-        encode_word(4, SPV_INSTRUCTION_OP_LOAD),
-        10,
-        20,
-        30,
-        // OpImageWrite %20 %40 %50
-        encode_word(4, SPV_INSTRUCTION_OP_IMAGE_WRITE),
-        20,
-        40,
-        50,
+        encode_word(4, SPV_INSTRUCTION_OP_LOAD), 10, 20, 30,
+        encode_word(4, SPV_INSTRUCTION_OP_IMAGE_WRITE), 20, 40, 50,
     ];
     let traces = trace_loaded_opaques(spv, &[0]);
     assert_eq!(traces.len(), 1);

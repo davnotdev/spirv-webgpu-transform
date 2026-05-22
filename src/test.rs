@@ -276,3 +276,15 @@ test_with_spv_and_fn![
     "./test/splitbindingarray/texture_binding_array.spv",
     splitbindingarray
 ];
+test_with_spv_and_fn![
+    splitbinding_splitbinding_sampler_binding_array,
+    DO_ALL,
+    "./test/splitbindingarray/sampler_binding_array.spv",
+    splitbindingarray
+];
+test_with_spv_and_fn![
+    splitbinding_splitbinding_sampler_stub,
+    DO_ALL,
+    "./test/splitbindingarray/sampler_stub.spv",
+    splitbindingarray
+];
