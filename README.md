@@ -18,13 +18,15 @@ At the moment, the following transformations are supported:
 | Feature                           | `spirv-val` | `naga` | `tint` |
 | --------------------------------- | ----------- | ------ | ------ |
 | Combined Image Samplers           | ✅          | ✅     | ✅     |
-| Immediates (Push Constants)       | ✅          | ✅     | ✅     |
+| Immediates (Push Constants)       | ✅          | ✅\*   | ✅     |
 | Mixed Depth / Comparison          | ✅          | ⚠️\*   | ❌     |
 | isnan / isinf Patching            | ✅          | ✅     | ✅     |
 | Storage Cube Patching             | ✅          | ✅     | ✅     |
 | Unused Image Sampler Pruning      | ✅          | ✅     | ✅     |
 
-> \* Simple cases are OK.
+> (1)\* 99% OK, just one very specific padding related `naga` bug.
+
+> (2)\* Simple cases are OK.
 > With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
 
 ## Combined Image Samplers
