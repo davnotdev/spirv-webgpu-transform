@@ -260,7 +260,7 @@ pub fn splitbindingarray(
     // To keep things simple, we handle samplers separately.
     // See `opaque_trace.rs` for details.
     let mut arrayed_sampler_map = HashMap::new();
-    for &(ac_idx, &v_idx, _, &array_type) in access_idxs.iter() {
+    for &(ac_idx, &v_idx, ta_idx, &array_type) in access_idxs.iter() {
         let access_result_id = spv[ac_idx + 2];
         if let Some(OpaqueArrayType) = array_type {
             for &load_idx in op_load_idxs.iter() {
@@ -270,7 +270,7 @@ pub fn splitbindingarray(
                     for &sampled_image_idx in op_sampled_image_idxs.iter() {
                         let sampler_id = spv[sampled_image_idx + 4];
                         if sampler_id == result_id {
-                            arrayed_sampler_map.insert(sampled_image_idx, v_idx);
+                            arrayed_sampler_map.insert(sampled_image_idx, (ac_idx, v_idx, ta_idx));
                         }
                     }
                 }
@@ -291,6 +291,27 @@ pub fn splitbindingarray(
         let base_id = new_variables_map[v_idx];
 
         if let Some(OpaqueArrayType) = *array_type {
+            // When both a texture array and a sampler array feed the same OpSampledImage,
+            // the texture AC's processing already generates the correct nested switch
+            // (outer = texture index, inner = sampler index via `maybe_sampler_array_data`).
+            //
+            // Detect this by checking whether this AC is already stored as the sampler
+            // dimension in `arrayed_sampler_map`.  If so, just NOP its dependent loads
+            // (they reference the now-undefined AC result) and skip switch generation.
+            let is_inner_sampler_ac = arrayed_sampler_map
+                .values()
+                .any(|&(map_ac_idx, _, _)| map_ac_idx == ac_idx);
+            if is_inner_sampler_ac {
+                for &load_idx in op_load_idxs.iter() {
+                    if spv[load_idx + 3] == old_result_id {
+                        let wc = hiword(spv[load_idx]) as usize;
+                        new_spv[load_idx..load_idx + wc]
+                            .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+                    }
+                }
+                continue;
+            }
+
             let load_idxs = op_load_idxs
                 .iter()
                 .filter(|&idx| {
@@ -301,7 +322,7 @@ pub fn splitbindingarray(
                 .collect::<Vec<_>>();
             let dependent_traces = trace_loaded_opaques(&spv, &load_idxs);
             for trace in dependent_traces {
-                let maybe_sampler_array_v_idx = match trace.next {
+                let maybe_sampler_array_data = match trace.next {
                     OpaqueImageOp::Sampled(sampled_image_op) => {
                         arrayed_sampler_map.get(&sampled_image_op.idx)
                     }
@@ -310,6 +331,8 @@ pub fn splitbindingarray(
 
                 let switch_instructions =
                     reconstruct_opaque_trace_and_overwrite(&spv, &mut new_spv, &trace);
+                let underlying_type_and_target_id =
+                    get_last_instruction_result_type_and_id(&switch_instructions);
                 let rotate_image_sampler = matches!(
                     trace.next,
                     OpaqueImageOp::Sampled(SampledImageOp {
@@ -317,19 +340,7 @@ pub fn splitbindingarray(
                         ..
                     })
                 );
-                let builder = |ib: &mut u32, target_id: u32| {
-                    if let Some(sampler_array_v_idx) = maybe_sampler_array_v_idx {
-                        // Uh oh, we have a sampler array, we will need to nest this trace further.
-                        // todo!()
-                    } else {
-                        // let (instructions, output) = rechain_instructions_with_target_id(
-                        //     ib,
-                        //     &switch_instructions,
-                        //     target_id,
-                        //     false,
-                        // );
-                        // (instructions, output.map(|(_, id)| id))
-                    }
+                let rechain_instructions = |ib: &mut u32, target_id: u32| {
                     let (instructions, output) = rechain_instructions_with_target_id(
                         ib,
                         &switch_instructions,
@@ -339,10 +350,114 @@ pub fn splitbindingarray(
                     );
                     (instructions, output.map(|(_, id)| id))
                 };
+                // Track inner merge labels per outer case so we can fix the outer phi after select_template_spv runs.
+                // `select_template_spv` puts the outer case labels in the phi, but with a nested inner switch the actual predecessor
+                // of the outer merge is the inner merge block, not the outer case block.
+                let mut inner_merge_labels: Vec<u32> = vec![];
 
-                let underlying_type_and_target_id =
-                    get_last_instruction_result_type_and_id(&switch_instructions);
-                let switch = select_template_spv(
+                let builder = |ib: &mut u32, target_id: u32| {
+                    if let Some((sampler_array_ac_idx, sampler_array_v_idx, sampler_array_ta_idx)) =
+                        maybe_sampler_array_data
+                    {
+                        let sampler_base_id = new_variables_map[sampler_array_v_idx];
+                        let sampler_index_0_id = spv[sampler_array_ac_idx + 4];
+                        let sampler_length = length_map[sampler_array_ta_idx] as usize;
+
+                        // Rechain only the image load for this outer case.
+                        // switch_instructions = [image_load, OpSampledImage, ...]
+                        // target_id is the split image variable for this outer case.
+                        let image_load_wc = hiword(switch_instructions[0]) as usize;
+                        let (image_load_instrs, image_out) = rechain_instructions_with_target_id(
+                            ib,
+                            &switch_instructions[..image_load_wc],
+                            target_id,
+                            false,
+                            false,
+                        );
+                        let (_, new_image_id) =
+                            image_out.expect("image load must produce a result");
+
+                        // Locate OpSampledImage and any instructions that follow it.
+                        let si_wc = hiword(switch_instructions[image_load_wc]) as usize;
+                        let after_si = &switch_instructions[image_load_wc + si_wc..];
+                        let sampler_type_id = spv[op_type_sampler_idxs[0] + 1];
+
+                        // Inner builder: per sampler variable j, emit sampler load + OpSampledImage + trailing instructions.
+                        // The image load is placed before the inner switch.
+                        let inner_builder = |ib: &mut u32, inner_target_id: u32| {
+                            let mut instrs = vec![];
+
+                            let new_sampler_result = inc(ib);
+                            instrs.extend_from_slice(&[
+                                encode_word(4, SPV_INSTRUCTION_OP_LOAD),
+                                sampler_type_id,
+                                new_sampler_result,
+                                inner_target_id,
+                            ]);
+
+                            let new_si_result = inc(ib);
+                            let mut si_patched =
+                                switch_instructions[image_load_wc..image_load_wc + si_wc].to_vec();
+                            si_patched[2] = new_si_result;
+                            si_patched[3] = new_image_id;
+                            si_patched[4] = new_sampler_result;
+                            instrs.extend_from_slice(&si_patched);
+
+                            if !after_si.is_empty() {
+                                let (chained, output) = rechain_instructions_with_target_id(
+                                    ib,
+                                    after_si,
+                                    new_si_result,
+                                    false,
+                                    false,
+                                );
+                                instrs.extend_from_slice(&chained);
+                                return (instrs, output.map(|(_, id)| id));
+                            }
+                            (instrs, Some(new_si_result))
+                        };
+
+                        let mut inner_switch = select_template_spv(
+                            ib,
+                            sampler_base_id,
+                            sampler_index_0_id,
+                            sampler_length,
+                            inner_builder,
+                            underlying_type_and_target_id,
+                        );
+
+                        // Find the inner merge label (last OpLabel before the inner phi).
+                        let phi_idx = get_last_instruction_index(&inner_switch);
+                        {
+                            let mut idx = 0;
+                            let mut label = 0u32;
+                            while idx < phi_idx {
+                                if loword(inner_switch[idx]) == SPV_INSTRUCTION_OP_LABEL {
+                                    label = inner_switch[idx + 1];
+                                }
+                                idx += hiword(inner_switch[idx]) as usize;
+                            }
+                            inner_merge_labels.push(label);
+                        }
+
+                        // Patch the inner phi's result id to a fresh id for the outer phi.
+                        let output_id = (loword(inner_switch[phi_idx]) == SPV_INSTRUCTION_OP_PHI)
+                            .then(|| {
+                                let new_id = inc(ib);
+                                inner_switch[phi_idx + 2] = new_id;
+                                new_id
+                            });
+
+                        // Emit: image load once for this outer case, then the inner switch.
+                        let mut result = image_load_instrs;
+                        result.extend_from_slice(&inner_switch);
+                        (result, output_id)
+                    } else {
+                        rechain_instructions(ib, target_id)
+                    }
+                };
+
+                let mut switch = select_template_spv(
                     &mut instruction_bound,
                     base_id,
                     index_0_id,
@@ -350,6 +465,20 @@ pub fn splitbindingarray(
                     builder,
                     underlying_type_and_target_id,
                 );
+
+                // Patch the outer phi's predecessor labels.
+                // select_template_spv filled them with the outer case labels,
+                // but each outer case now ends at its inner merge block, not at the outer case label.
+                // phi layout: [opword, type, result_id, val0, pred0, val1, pred1, ...]
+                if !inner_merge_labels.is_empty() {
+                    let phi_idx = get_last_instruction_index(&switch);
+                    if loword(switch[phi_idx]) == SPV_INSTRUCTION_OP_PHI {
+                        for (i, &label) in inner_merge_labels.iter().enumerate() {
+                            switch[phi_idx + 4 + 2 * i] = label;
+                        }
+                    }
+                }
+
                 instruction_inserts.push(InstructionInsert {
                     previous_spv_idx: trace.last_result_id(),
                     instruction: switch,

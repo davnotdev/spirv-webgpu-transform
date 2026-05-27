@@ -277,6 +277,12 @@ test_with_spv_and_fn![
     splitbindingarray
 ];
 test_with_spv_and_fn![
+    splitbinding_splitbinding_nested_texture_binding_array,
+    DO_ALL,
+    "./test/splitbindingarray/nested_texture_binding_array.spv",
+    splitbindingarray
+];
+test_with_spv_and_fn![
     splitbinding_splitbinding_sampler_binding_array,
     DO_ALL,
     "./test/splitbindingarray/sampler_binding_array.spv",

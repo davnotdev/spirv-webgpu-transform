@@ -70,13 +70,7 @@ pub fn rechain_instructions_with_target_id(
 // Intended to run alongside the previous function with the same snippet properties.
 // If the last instruction is not an expected store operation, return the final result type and id.
 pub fn get_last_instruction_result_type_and_id(snippet: &[u32]) -> Option<(u32, u32)> {
-    let mut last_off = 0;
-    let mut idx = 0;
-    while idx < snippet.len() {
-        last_off = idx;
-        idx += hiword(snippet[idx]) as usize;
-    }
-
+    let last_off = get_last_instruction_index(snippet);
     let returns_result = !matches!(
         loword(snippet[last_off]),
         SPV_INSTRUCTION_OP_STORE | SPV_INSTRUCTION_OP_COPY_MEMORY | SPV_INSTRUCTION_OP_IMAGE_WRITE

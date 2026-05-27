@@ -4,6 +4,7 @@ mod correct_decorate;
 mod decorate;
 mod ensure;
 mod function;
+mod instruction;
 mod opaque_trace;
 mod pointer;
 
@@ -11,6 +12,7 @@ pub use correct_decorate::*;
 pub use decorate::*;
 pub use ensure::*;
 pub use function::*;
+pub use instruction::*;
 pub use opaque_trace::*;
 pub use pointer::*;
 
