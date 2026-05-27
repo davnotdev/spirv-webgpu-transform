@@ -1,6 +1,6 @@
 use super::{
-    combimgsampsplitter, drefsplitter, isnanisinfpatch, mirrorpatch, pruneunuseddref,
-    storagecubepatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
+    combimgsampsplitter, drefsplitter, immediatespatch, isnanisinfpatch, mirrorpatch,
+    pruneunuseddref, storagecubepatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
 };
 
 use naga::{back, front, valid};
@@ -215,4 +215,12 @@ test_with_spv_and_fn_no_correction![
     DO_ALL,
     "./test/pruneunuseddref/pruneunuseddref_storage.spv",
     pruneunuseddref
+];
+
+// ---
+test_with_spv_and_fn_no_correction![
+    immediatespatch_immediatespatch_immediates,
+    DO_ALL,
+    "./test/immediatespatch/immediates.spv",
+    immediatespatch
 ];

@@ -31,6 +31,7 @@ fn main() {
             spirv_webgpu_transform::storagecubepatch(&spv, &mut out_correction_map).unwrap()
         }
         "pruneunuseddref" => spirv_webgpu_transform::pruneunuseddref(&spv).unwrap(),
+        "immediates" => spirv_webgpu_transform::immediatespatch(&spv).unwrap(),
         mode => {
             eprintln!("unknown mode {:?}", mode);
             process::exit(1)
