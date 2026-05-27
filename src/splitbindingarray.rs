@@ -245,7 +245,7 @@ pub fn splitbindingarray(
                 affected_decorations.push(AffectedDecoration {
                     original_res_id: old_result_id,
                     new_res_ids: new_ids,
-                    correction_type: CorrectionType::SplitBindingArray(length),
+                    correction_type: CorrectionType::SplitBindingArray,
                 });
             }
             SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => {

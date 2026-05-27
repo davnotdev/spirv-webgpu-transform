@@ -14,11 +14,8 @@ pub enum CorrectionType {
     SplitDrefComparison,
     /// A storage cube texture has been converted into a storage texture 2D array, change the dimension.
     ConvertStorageCube,
-    /// A binding array has been split into N new variables.
-    /// In ffi form, this is represented by 
-    /// `SPLIT_BINDING_ARRAY_BASE <= v < SPLIT_BINDING_ARRAY_MAX`
-    /// where N = `v - SPLIT_BINDING_ARRAY_BASE`.
-    SplitBindingArray(u32),
+    /// A binding array has been split into new variables. Insert the same resource again.
+    SplitBindingArray,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

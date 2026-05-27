@@ -387,7 +387,9 @@ pub fn reconstruct_opaque_trace_and_overwrite(
             out.extend_from_slice(take_instruction(spv, op_idx));
             write_nop_instruction(new_spv, op_idx);
         }
-        OpaqueImageOp::Sampled(SampledImageOp { idx: si_idx, next, .. }) => {
+        OpaqueImageOp::Sampled(SampledImageOp {
+            idx: si_idx, next, ..
+        }) => {
             out.extend_from_slice(take_instruction(spv, *si_idx));
             write_nop_instruction(new_spv, *si_idx);
 
