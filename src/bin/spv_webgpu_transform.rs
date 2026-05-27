@@ -5,7 +5,7 @@ fn main() {
 
     if args.len() != 4 {
         eprintln!(
-            "Usage: spv_webgpu_transform <combimg|dref|isnanisinf|storagecube|pruneunuseddref> <input.spv> <output.spv>"
+            "Usage: spv_webgpu_transform <combimg|dref|isnanisinf|storagecube|pruneunuseddref|immediates> <input.spv> <output.spv>"
         );
         process::exit(1);
     }

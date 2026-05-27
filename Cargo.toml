@@ -13,6 +13,6 @@ keywords = ["gamedev", "graphics"]
 categories = ["graphics"]
 
 [dev-dependencies]
-naga = { version = "23", features = ["spv-in", "wgsl-out"]}
+naga = { version = "29", features = ["spv-in", "wgsl-out"]}
 spirv-tools = "0.13"
 

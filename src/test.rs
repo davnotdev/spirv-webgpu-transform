@@ -48,14 +48,7 @@ fn try_spv_to_wgsl(spv: &[u32], flags: u8) {
 
     if flags & NAGA_VALIDATE != 0 {
         let module = front::spv::parse_u8_slice(&spv_u8, &front::spv::Options::default()).unwrap();
-
-        let mut caps = valid::Capabilities::default();
-        caps.set(
-            valid::Capabilities::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
-            true,
-        );
-        caps.set(valid::Capabilities::SAMPLER_NON_UNIFORM_INDEXING, true);
-
+        let caps = valid::Capabilities::default();
         let mut info = valid::Validator::new(valid::ValidationFlags::all(), caps);
         let info = info.validate(&module).unwrap();
 
@@ -224,9 +217,11 @@ test_with_spv_and_fn_no_correction![
     "./test/immediatespatch/immediates.spv",
     immediatespatch
 ];
+// TODO: This is valid, just not supported in current naga.
+// Someone check on this in a month or so, I think the fix has been merged.
 test_with_spv_and_fn_no_correction![
     immediatespatch_mat2_direct,
-    DO_ALL,
+    SPV_VALIDATE,
     "./test/immediatespatch/mat2_direct.spv",
     immediatespatch
 ];

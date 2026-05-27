@@ -202,7 +202,15 @@ fn relayout_type_recursive(
             }
 
             for (i, member) in members.iter().enumerate() {
-                if let TypeKind::Matrix { column, .. } = &member.kind {
+                let matrix_kind = match &member.kind {
+                    TypeKind::Matrix { .. } => Some(&member.kind),
+                    TypeKind::Array { element, .. } => match &element.kind {
+                        TypeKind::Matrix { .. } => Some(&element.kind),
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                if let Some(TypeKind::Matrix { column, .. }) = matrix_kind {
                     let col_count = column_vec_count(column);
                     let scalar_w = column_scalar_width(column);
                     let new_stride = matrix_stride(col_count, scalar_w, LayoutRule::Std140);
