@@ -224,3 +224,27 @@ test_with_spv_and_fn_no_correction![
     "./test/immediatespatch/immediates.spv",
     immediatespatch
 ];
+test_with_spv_and_fn_no_correction![
+    immediatespatch_mat2_direct,
+    DO_ALL,
+    "./test/immediatespatch/mat2_direct.spv",
+    immediatespatch
+];
+test_with_spv_and_fn_no_correction![
+    immediatespatch_array_of_mat2,
+    DO_ALL,
+    "./test/immediatespatch/array_of_mat2.spv",
+    immediatespatch
+];
+test_with_spv_and_fn_no_correction![
+    immediatespatch_nested_struct,
+    DO_ALL,
+    "./test/immediatespatch/nested_struct.spv",
+    immediatespatch
+];
+test_with_spv_and_fn_no_correction![
+    immediatespatch_row_major,
+    DO_ALL,
+    "./test/immediatespatch/row_major.spv",
+    immediatespatch
+];

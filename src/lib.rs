@@ -29,9 +29,9 @@
 use std::collections::{HashMap, HashSet};
 
 mod correction;
+mod immediatespatch;
 mod isnanisinfpatch;
 mod mirrorpatch;
-mod immediatespatch;
 mod pruneunuseddref;
 mod splitcombined;
 mod splitdref;

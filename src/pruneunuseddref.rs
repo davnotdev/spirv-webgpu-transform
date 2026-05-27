@@ -70,7 +70,7 @@ pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
                     let type_id = spv[ti_idx + 1];
                     let image_sampled = spv[ti_idx + 7];
 
-                    // `!= 2` filters for storage textures which shouldn't be pruned. 
+                    // `!= 2` filters for storage textures which shouldn't be pruned.
                     image_sampled != 2 && type_id == underlying_type_id
                 })
                 .then_some(result_id)
