@@ -123,22 +123,36 @@ In `wgpu`, this covers following features:
 - `STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING`
 
 ```glsl
-#define MAX_RESOURCES 3
+struct Thing {
+    float a;
+};
+
+#define MAX_RESOURCES 2
 layout(set = 0, binding = 0) uniform sampler u_samplers[MAX_RESOURCES];
 layout(set = 0, binding = 1) uniform texture2D u_textures[MAX_RESOURCES];
-layout(set = 0, binding = 2) uniform Thing { float a; } u_things[MAX_RESOURCES];
+layout(set = 0, binding = 2) uniform texture2DArray u_texture_arrays[MAX_RESOURCES];
+layout(set = 0, binding = 3) uniform image2D u_images[MAX_RESOURCES];
+layout(set = 0, binding = 4) uniform Thing u_things[MAX_RESOURCES];
+layout(set = 0, binding = 5, std140) buffer Thing u_buf_things[MAX_RESOURCES];
 
 // is converted into...
 
+struct Thing {
+    float a;
+};
+
 layout(set = 0, binding = 0) uniform sampler u_samplers_0;
 layout(set = 0, binding = 1) uniform sampler u_samplers_1;
-layout(set = 0, binding = 2) uniform sampler u_samplers_2;
-layout(set = 0, binding = 3) uniform texture2D u_textures_0;
-layout(set = 0, binding = 4) uniform texture2D u_textures_1;
-layout(set = 0, binding = 5) uniform texture2D u_textures_2;
-layout(set = 0, binding = 6) uniform Thing { float a; } u_things_0;
-layout(set = 0, binding = 7) uniform Thing { float a; } u_things_1;
-layout(set = 0, binding = 8) uniform Thing { float a; } u_things_2;
+layout(set = 0, binding = 2) uniform texture2D u_textures_0;
+layout(set = 0, binding = 3) uniform texture2D u_textures_1;
+layout(set = 0, binding = 4) uniform texture2DArray u_texture_arrays_0;
+layout(set = 0, binding = 5) uniform texture2DArray u_texture_arrays_1;
+layout(set = 0, binding = 6) uniform image2D u_images_0;
+layout(set = 0, binding = 7) uniform image2D u_images_1;
+layout(set = 0, binding = 8) uniform Thing u_things_0;
+layout(set = 0, binding = 9) uniform Thing u_things_1;
+layout(set = 0, binding = 10, std140) buffer Thing u_buf_things_0;
+layout(set = 0, binding = 11, std140) buffer Thing u_buf_things_1;
 ```
 
 ### Additional Notes
@@ -157,6 +171,7 @@ layout(set = 0, binding = 8) uniform Thing { float a; } u_things_2;
 | `nested_texture_binding_array.frag`   | ✅          | ✅     | ✅   |
 | `sampler_binding_array.frag`          | ✅          | ✅     | ✅   |
 | `sampler_stub.frag`                   | ✅          | ✅     | ✅   |
+| `texture_array_binding_array.frag`    | ✅          | ✅     | ✅   |
 
 ## Mixed Depth / Comparison
 
