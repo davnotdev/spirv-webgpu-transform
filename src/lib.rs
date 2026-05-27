@@ -10,6 +10,7 @@
 //! | --------------------------------- | ----------- | ------ | ------ |
 //! | Combined Image Samplers           | ✅          | ✅     | ✅     |
 //! | Immediates (Push Constants)       | ✅          | ✅\*   | ✅     |
+//! | Binding Arrays                    | ✅          | ✅     | ✅     |
 //! | Mixed Depth / Comparison          | ✅          | ⚠️\*   | ❌     |
 //! | isnan / isinf Patching            | ✅          | ✅     | ✅     |
 //! | Storage Cube Patching             | ✅          | ✅     | ✅     |
