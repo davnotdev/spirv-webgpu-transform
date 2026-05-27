@@ -19,6 +19,7 @@ At the moment, the following transformations are supported:
 | --------------------------------- | ----------- | ------ | ------ |
 | Combined Image Samplers           | ✅          | ✅     | ✅     |
 | Immediates (Push Constants)       | ✅          | ✅\*   | ✅     |
+| Binding Arrays                    | ✅          | ✅     | ✅     |
 | Mixed Depth / Comparison          | ✅          | ⚠️\*   | ❌     |
 | isnan / isinf Patching            | ✅          | ✅     | ✅     |
 | Storage Cube Patching             | ✅          | ✅     | ✅     |
@@ -89,7 +90,6 @@ layout(std140, set = N+1, binding = 0) uniform PushBlock {
 } pc;
 
 // where N is the max set in the shader.
-
 ```
 
 ### Additional Notes
@@ -109,6 +109,54 @@ layout(std140, set = N+1, binding = 0) uniform PushBlock {
 | `row_major.frag`        | ✅          | ✅     | ✅   |
 
 > \* naga's SPIR-V front-end rejects `MatrixStride 16` for `mat2x2`, this should be fixed soon (?).
+
+## Binding Arrays 
+
+Binding arrays are a feature commonly used in shaders and supported by WGSL compilers, just not on the web (yet?).
+This patch takes fixed size arrays of size N containing opaque or concrete types and splits them into N individual bindings.
+In `wgpu`, this covers following features: 
+
+- `TEXTURE_BINDING_ARRAY`
+- `BUFFER_BINDING_ARRAY`
+- `STORAGE_RESOURCE_BINDING_ARRAY`
+- `SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING`
+- `STORAGE_TEXTURE_ARRAY_NON_UNIFORM_INDEXING`
+
+```glsl
+#define MAX_RESOURCES 3
+layout(set = 0, binding = 0) uniform sampler u_samplers[MAX_RESOURCES];
+layout(set = 0, binding = 1) uniform texture2D u_textures[MAX_RESOURCES];
+layout(set = 0, binding = 2) uniform Thing { float a; } u_things[MAX_RESOURCES];
+
+// is converted into...
+
+layout(set = 0, binding = 0) uniform sampler u_samplers_0;
+layout(set = 0, binding = 1) uniform sampler u_samplers_1;
+layout(set = 0, binding = 2) uniform sampler u_samplers_2;
+layout(set = 0, binding = 3) uniform texture2D u_textures_0;
+layout(set = 0, binding = 4) uniform texture2D u_textures_1;
+layout(set = 0, binding = 5) uniform texture2D u_textures_2;
+layout(set = 0, binding = 6) uniform Thing { float a; } u_things_0;
+layout(set = 0, binding = 7) uniform Thing { float a; } u_things_1;
+layout(set = 0, binding = 8) uniform Thing { float a; } u_things_2;
+```
+
+### Additional Notes
+
+- Combined image samplers are not supported, please run the combined image sampler pass first.
+- Nested resources (`texture2D u[I][J][K]`) are not supported.
+- Usage of additional SPIR-V capabilities such as `SparseResidency` or `ImageQuery` are not supported.
+
+### Tests
+
+| Test                                  | `spirv-val` | Naga   | Tint |
+| ------------------------------------- | ----------- | ------ | ---- |
+| `buffer_binding_array.frag`           | ✅          | ✅     | ✅   |
+| `storage_binding_array.frag`          | ✅          | ✅     | ✅   |
+| `texture_binding_array.frag`          | ✅          | ✅     | ✅   |
+| `nested_texture_binding_array.frag`   | ✅          | ✅     | ✅   |
+| `sampler_binding_array.frag`          | ✅          | ✅     | ✅   |
+| `sampler_stub.frag`                   | ✅          | ✅     | ✅   |
 
 ## Mixed Depth / Comparison
 

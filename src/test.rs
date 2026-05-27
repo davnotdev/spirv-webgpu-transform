@@ -259,38 +259,44 @@ test_with_spv_and_fn_no_correction![
 // ---
 
 test_with_spv_and_fn![
-    splitbinding_splitbinding_buffer_binding_array,
+    splitbinding_buffer_binding_array,
     DO_ALL,
     "./test/splitbindingarray/buffer_binding_array.spv",
     splitbindingarray
 ];
 test_with_spv_and_fn![
-    splitbinding_splitbinding_storage_binding_array,
+    splitbinding_storage_binding_array,
     DO_ALL,
     "./test/splitbindingarray/storage_binding_array.spv",
     splitbindingarray
 ];
 test_with_spv_and_fn![
-    splitbinding_splitbinding_texture_binding_array,
+    splitbinding_texture_binding_array,
     DO_ALL,
     "./test/splitbindingarray/texture_binding_array.spv",
     splitbindingarray
 ];
 test_with_spv_and_fn![
-    splitbinding_splitbinding_nested_texture_binding_array,
+    splitbinding_nested_texture_binding_array,
     DO_ALL,
     "./test/splitbindingarray/nested_texture_binding_array.spv",
     splitbindingarray
 ];
 test_with_spv_and_fn![
-    splitbinding_splitbinding_sampler_binding_array,
+    splitbinding_sampler_binding_array,
     DO_ALL,
     "./test/splitbindingarray/sampler_binding_array.spv",
     splitbindingarray
 ];
 test_with_spv_and_fn![
-    splitbinding_splitbinding_sampler_stub,
+    splitbinding_sampler_stub,
     DO_ALL,
     "./test/splitbindingarray/sampler_stub.spv",
+    splitbindingarray
+];
+test_with_spv_and_fn![
+    splitbinding_texture_array_binding_array,
+    DO_ALL,
+    "./test/splitbindingarray/texture_array_binding_array.spv",
     splitbindingarray
 ];
