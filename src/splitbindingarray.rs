@@ -118,7 +118,9 @@ pub fn splitbindingarray(
         }
     }
 
-    // 2. OpTypeArray -> OpTypePointer -> OpVariable
+    // 2. OpTypeArray -> OpTypePointer
+    //      -> OpVariable
+    //      -> OpFunctionParameter
     let array_tp_ta_idxs = op_type_pointer_idxs
         .iter()
         .filter_map(|&tp_idx| {
@@ -150,22 +152,25 @@ pub fn splitbindingarray(
         })
         .collect::<Vec<_>>();
 
-    let array_v_ta_idxs = op_variable_idxs
+    // Contains ((OpVariable or OpFunctionParameter), OpTypePointer, Option<OpaqueArrayType>)
+    // OpVariable is a subtype of OpFunctionParameter over the first three words.
+    let array_vfp_ta_idxs = op_variable_idxs
         .iter()
-        .filter_map(|&v_idx| {
-            let variable_type_id = spv[v_idx + 1];
+        .chain(op_function_parameter_idxs.iter())
+        .filter_map(|&vfp_idx| {
+            let variable_type_id = spv[vfp_idx + 1];
             array_tp_ta_idxs
                 .iter()
                 .find(|&(tp_idx, _, _)| {
                     let tp_res_id = spv[tp_idx + 1];
                     tp_res_id == variable_type_id
                 })
-                .map(|&(_, ta_idx, array_type)| (v_idx, ta_idx, array_type))
+                .map(|&(_, ta_idx, array_type)| (vfp_idx, ta_idx, array_type))
         })
         .collect::<Vec<_>>();
 
     // 3. Build mapping of lengths
-    let length_map = array_v_ta_idxs
+    let length_map = array_vfp_ta_idxs
         .iter()
         .map(|(_, ta_idx, _)| {
             let length_id = spv[ta_idx + 3];
@@ -187,8 +192,8 @@ pub fn splitbindingarray(
     let mut new_variables_map = HashMap::new();
     let mut affected_decorations = vec![];
 
-    for &(v_idx, ta_idx, array_type) in array_v_ta_idxs.iter() {
-        new_spv[v_idx..v_idx + hiword(spv[v_idx]) as usize]
+    for &(vfp_idx, ta_idx, array_type) in array_vfp_ta_idxs.iter() {
+        new_spv[vfp_idx..vfp_idx + hiword(spv[vfp_idx]) as usize]
             .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
 
         let mut new_instruction = vec![];
@@ -229,9 +234,9 @@ pub fn splitbindingarray(
         //     instruction: new_instruction,
         // });
         types_header_insert.instruction.append(&mut new_instruction);
-        new_variables_map.insert(v_idx, base_id);
+        new_variables_map.insert(vfp_idx, base_id);
 
-        let old_result_id = spv[v_idx + 2];
+        let old_result_id = spv[vfp_idx + 2];
         let new_ids = (base_id..base_id + length).collect::<Vec<_>>();
         affected_decorations.push(AffectedDecoration {
             original_res_id: old_result_id,
@@ -245,13 +250,13 @@ pub fn splitbindingarray(
         .chain(op_in_bounds_access_chain_idxs.iter())
         .filter_map(|&ac_idx| {
             let base_id = spv[ac_idx + 3];
-            array_v_ta_idxs
+            array_vfp_ta_idxs
                 .iter()
-                .find(|&(v_idx, _, _)| {
-                    let result_id = spv[*v_idx + 2];
+                .find(|&(vfp_idx, _, _)| {
+                    let result_id = spv[*vfp_idx + 2];
                     result_id == base_id
                 })
-                .map(|(v_idx, ta_idx, array_type)| (ac_idx, v_idx, ta_idx, array_type))
+                .map(|(vfp_idx, ta_idx, array_type)| (ac_idx, vfp_idx, ta_idx, array_type))
         })
         .collect::<Vec<_>>();
 
@@ -260,7 +265,7 @@ pub fn splitbindingarray(
     // To keep things simple, we handle samplers separately.
     // See `opaque_trace.rs` for details.
     let mut arrayed_sampler_map = HashMap::new();
-    for &(ac_idx, &v_idx, ta_idx, &array_type) in access_idxs.iter() {
+    for &(ac_idx, &vfp_idx, ta_idx, &array_type) in access_idxs.iter() {
         let access_result_id = spv[ac_idx + 2];
         if let Some(OpaqueArrayType) = array_type {
             for &load_idx in op_load_idxs.iter() {
@@ -270,7 +275,8 @@ pub fn splitbindingarray(
                     for &sampled_image_idx in op_sampled_image_idxs.iter() {
                         let sampler_id = spv[sampled_image_idx + 4];
                         if sampler_id == result_id {
-                            arrayed_sampler_map.insert(sampled_image_idx, (ac_idx, v_idx, ta_idx));
+                            arrayed_sampler_map
+                                .insert(sampled_image_idx, (ac_idx, vfp_idx, ta_idx));
                         }
                     }
                 }
@@ -279,7 +285,7 @@ pub fn splitbindingarray(
     }
 
     // 6. Replace OpAccessChain with selection function
-    for &(ac_idx, v_idx, ta_idx, array_type) in access_idxs.iter() {
+    for &(ac_idx, vfp_idx, ta_idx, array_type) in access_idxs.iter() {
         let ac_word_count = hiword(spv[ac_idx]) as usize;
         new_spv[ac_idx..ac_idx + ac_word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
 
@@ -288,7 +294,7 @@ pub fn splitbindingarray(
 
         let length = length_map[&ta_idx];
 
-        let base_id = new_variables_map[v_idx];
+        let base_id = new_variables_map[vfp_idx];
 
         if let Some(OpaqueArrayType) = *array_type {
             // When both a texture array and a sampler array feed the same OpSampledImage,
@@ -577,8 +583,8 @@ pub fn splitbindingarray(
         .iter()
         .filter(|&idx| {
             let target = spv[idx + 1];
-            new_variables_map.iter().any(|(v_idx, _)| {
-                let result_id = spv[v_idx + 2];
+            new_variables_map.iter().any(|(vfp_idx, _)| {
+                let result_id = spv[vfp_idx + 2];
                 target == result_id
             })
         })
@@ -588,8 +594,8 @@ pub fn splitbindingarray(
         .iter()
         .filter(|&idx| {
             let target = spv[idx + 1];
-            new_variables_map.iter().any(|(v_idx, _)| {
-                let result_id = spv[v_idx + 2];
+            new_variables_map.iter().any(|(vfp_idx, _)| {
+                let result_id = spv[vfp_idx + 2];
                 target == result_id
             })
         })
