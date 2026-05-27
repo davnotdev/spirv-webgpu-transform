@@ -1,17 +1,23 @@
-//! ##
+//! # SPIRV WebGPU Transforms
+//!
+//! See [https://github.com/davnotdev/spirv-webgpu-transform](https://github.com/davnotdev/spirv-webgpu-transform) for more details.
 //!
 //! ## Features
 //!
 //! At the moment, the following transformations are supported:
 //!
-//! | Feature                   | `spirv-val` | `naga` | `tint` |
-//! | ------------------------- | ----------- | ------ | ------ |
-//! | Combined Image Samplers   | ✅          | ✅     | ✅     |
-//! | Mixed Depth / Comparison  | ✅          | ⚠️\*   | ❌     |
-//! | isnan / isinf Patching    | ✅          | ✅     | ✅     |
-//! | Storage Cube Patching     | ✅          | ✅     | ✅     |
+//! | Feature                           | `spirv-val` | `naga` | `tint` |
+//! | --------------------------------- | ----------- | ------ | ------ |
+//! | Combined Image Samplers           | ✅          | ✅     | ✅     |
+//! | Immediates (Push Constants)       | ✅          | ✅\*   | ✅     |
+//! | Mixed Depth / Comparison          | ✅          | ⚠️\*   | ❌     |
+//! | isnan / isinf Patching            | ✅          | ✅     | ✅     |
+//! | Storage Cube Patching             | ✅          | ✅     | ✅     |
+//! | Unused Image Sampler Pruning      | ✅          | ✅     | ✅     |
 //!
-//! > \* Simple cases are OK.
+//! > (1)\* 99% OK, just one very specific padding related `naga` bug.
+//!
+//! > (2)\* Simple cases are OK.
 //! > With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
 //!
 //! ## Using the result
@@ -21,14 +27,11 @@
 //! 1. Know which set bindings were affected, use the output [`CorrectionMap`] for this purpose.
 //! 2. Ensure that your vertex and fragment shaders shader the same binding layout, use [`mirrorpatch`] for this purpose
 //!
-//! ## For more details
-//!
-//! See [https://github.com/davnotdev/spirv-webgpu-transform](https://github.com/davnotdev/spirv-webgpu-transform) for more details.
-//!
 
 use std::collections::{HashMap, HashSet};
 
 mod correction;
+mod immediatespatch;
 mod isnanisinfpatch;
 mod mirrorpatch;
 mod pruneunuseddref;
@@ -45,6 +48,7 @@ use spv::*;
 use util::*;
 
 pub use correction::*;
+pub use immediatespatch::*;
 pub use isnanisinfpatch::*;
 pub use mirrorpatch::*;
 pub use pruneunuseddref::*;

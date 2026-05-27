@@ -1,6 +1,6 @@
 use super::{
-    combimgsampsplitter, drefsplitter, isnanisinfpatch, mirrorpatch, pruneunuseddref,
-    storagecubepatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
+    combimgsampsplitter, drefsplitter, immediatespatch, isnanisinfpatch, mirrorpatch,
+    pruneunuseddref, storagecubepatch, u8_slice_to_u32_vec, u32_slice_to_u8_vec,
 };
 
 use naga::{back, front, valid};
@@ -48,14 +48,7 @@ fn try_spv_to_wgsl(spv: &[u32], flags: u8) {
 
     if flags & NAGA_VALIDATE != 0 {
         let module = front::spv::parse_u8_slice(&spv_u8, &front::spv::Options::default()).unwrap();
-
-        let mut caps = valid::Capabilities::default();
-        caps.set(
-            valid::Capabilities::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING,
-            true,
-        );
-        caps.set(valid::Capabilities::SAMPLER_NON_UNIFORM_INDEXING, true);
-
+        let caps = valid::Capabilities::default();
         let mut info = valid::Validator::new(valid::ValidationFlags::all(), caps);
         let info = info.validate(&module).unwrap();
 
@@ -215,4 +208,38 @@ test_with_spv_and_fn_no_correction![
     DO_ALL,
     "./test/pruneunuseddref/pruneunuseddref_storage.spv",
     pruneunuseddref
+];
+
+// ---
+test_with_spv_and_fn_no_correction![
+    immediatespatch_immediatespatch_immediates,
+    DO_ALL,
+    "./test/immediatespatch/immediates.spv",
+    immediatespatch
+];
+// TODO: This is valid, just not supported in current naga.
+// Someone check on this in a month or so, I think the fix has been merged.
+test_with_spv_and_fn_no_correction![
+    immediatespatch_mat2_direct,
+    SPV_VALIDATE,
+    "./test/immediatespatch/mat2_direct.spv",
+    immediatespatch
+];
+test_with_spv_and_fn_no_correction![
+    immediatespatch_array_of_mat2,
+    DO_ALL,
+    "./test/immediatespatch/array_of_mat2.spv",
+    immediatespatch
+];
+test_with_spv_and_fn_no_correction![
+    immediatespatch_nested_struct,
+    DO_ALL,
+    "./test/immediatespatch/nested_struct.spv",
+    immediatespatch
+];
+test_with_spv_and_fn_no_correction![
+    immediatespatch_row_major,
+    DO_ALL,
+    "./test/immediatespatch/row_major.spv",
+    immediatespatch
 ];

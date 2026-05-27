@@ -70,6 +70,7 @@ pub fn combimgsampsplitter(
             }
             SPV_INSTRUCTION_OP_TYPE_SAMPLED_IMAGE => op_type_sampled_image_idxs.push(spv_idx),
             SPV_INSTRUCTION_OP_TYPE_POINTER => {
+                #[allow(clippy::collapsible_match)]
                 if spv[spv_idx + 2] == SPV_STORAGE_CLASS_UNIFORM_CONSTANT {
                     op_type_pointer_idxs.push(spv_idx);
                 }
