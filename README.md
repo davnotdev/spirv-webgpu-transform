@@ -9,6 +9,8 @@ When porting native games to the web using WebGPU, it becomes neccessary to tran
 Unfortunately, the WGSL specification lacks support for many features that have shader programmers have become accustomed to.
 This project aims to transform common but unsupported SPIRV shaders into a form that `naga` and `tint` can transpile.
 
+This also includes an interface for some dodging unsupported features or features that may not run on older browser versions.
+
 ## Feature Summary
 
 At the moment, the following transformations are supported:
@@ -16,6 +18,7 @@ At the moment, the following transformations are supported:
 | Feature                           | `spirv-val` | `naga` | `tint` |
 | --------------------------------- | ----------- | ------ | ------ |
 | Combined Image Samplers           | ✅          | ✅     | ✅     |
+| Immediates (Push Constants)       | ✅          | ✅     | ✅     |
 | Mixed Depth / Comparison          | ✅          | ⚠️\*   | ❌     |
 | isnan / isinf Patching            | ✅          | ✅     | ✅     |
 | Storage Cube Patching             | ✅          | ✅     | ✅     |
@@ -60,6 +63,50 @@ layout(set = 0, binding = 3) uniform sampler u_sampler;
 | `test_nested.frag`  | ✅          | ✅     | ✅   |
 | `test_arrayed.frag` | ✅          | ✅     | ✅   |
 | `test_mixed.frag`   | ✅          | ✅     | ✅   |
+
+## Immediates (Push Constants)
+
+Immediates, more commonly known as push constants came to the WebGPU spec late, so browser support is still unreliable (as of writing).
+This patch replaces push constants with an equivalent uniform buffer.
+
+```glsl
+layout(std430, push_constant) uniform PushBlock {
+    vec4 color;
+    mat4 transform;
+    float scale;
+    ...
+} pc;
+
+// is converted into...
+
+layout(std140, set = N+1, binding = 0) uniform PushBlock {
+    vec4 color;
+    mat4 transform;
+    float scale;
+    ...
+} pc;
+
+// where N is the max set in the shader.
+
+```
+
+### Additional Notes
+
+- The converted uniform is placed in `set = N+1`, where `N` is the highest descriptor set already in use.
+- Shaders that contain `mat2` (or any matrix with 2-row columns: `matCx2`) in the push constant block will not pass through `naga` specifically.
+- To my knowledge, padding should not be a concern between uniforms, storage, and immediates.
+
+### Tests
+
+| Test                    | `spirv-val` | Naga   | Tint |
+| ----------------------- | ----------- | ------ | ---- |
+| `immediates.frag`       | ✅          | ✅     | ✅   |
+| `mat2_direct.frag`      | ✅          | ❌\*   | ✅   |
+| `array_of_mat2.frag`    | ✅          | ✅     | ✅   |
+| `nested_struct.frag`    | ✅          | ✅     | ✅   |
+| `row_major.frag`        | ✅          | ✅     | ✅   |
+
+> \* naga's SPIR-V front-end rejects `MatrixStride 16` for `mat2x2`, this should be fixed soon (?).
 
 ## Mixed Depth / Comparison
 
