@@ -189,21 +189,23 @@ pub fn splitbindingarray(
         previous_spv_idx: types_header_position.unwrap(),
         instruction: vec![],
     };
-    let mut new_variables_map = HashMap::new();
+    let mut new_vfp_map = HashMap::new();
+    let mut function_type_changes = HashMap::new();
     let mut affected_decorations = vec![];
 
     for &(vfp_idx, ta_idx, array_type) in array_vfp_ta_idxs.iter() {
         new_spv[vfp_idx..vfp_idx + hiword(spv[vfp_idx]) as usize]
             .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
 
-        let mut new_instruction = vec![];
+        let mut new_type_instructions = vec![];
 
+        let instruction = loword(spv[vfp_idx]);
         let underlying_type_id = spv[ta_idx + 2];
         let type_pointer_id = ensure_type_pointer(
             &spv,
             &op_type_pointer_idxs,
             &mut instruction_bound,
-            &mut new_instruction,
+            &mut new_type_instructions,
             match array_type {
                 Some(OpaqueArrayType) => SPV_STORAGE_CLASS_UNIFORM_CONSTANT,
                 _ => SPV_STORAGE_CLASS_UNIFORM,
@@ -216,33 +218,101 @@ pub fn splitbindingarray(
         let base_id = instruction_bound;
         instruction_bound += length;
 
-        for i in 0..length {
-            new_instruction.append(&mut vec![
-                encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
-                type_pointer_id,
-                base_id + i,
-                match array_type {
-                    Some(OpaqueArrayType) => SPV_STORAGE_CLASS_UNIFORM_CONSTANT,
-                    _ => SPV_STORAGE_CLASS_UNIFORM,
-                },
-            ]);
-        }
-        // Ordering issues with this, let's keep it after all other type pointers.
-        //
-        // instruction_inserts.push(InstructionInsert {
-        //     previous_spv_idx: v_idx,
-        //     instruction: new_instruction,
-        // });
-        types_header_insert.instruction.append(&mut new_instruction);
-        new_variables_map.insert(vfp_idx, base_id);
+        match instruction {
+            SPV_INSTRUCTION_OP_VARIABLE => {
+                for i in 0..length {
+                    new_type_instructions.append(&mut vec![
+                        encode_word(4, SPV_INSTRUCTION_OP_VARIABLE),
+                        type_pointer_id,
+                        base_id + i,
+                        match array_type {
+                            Some(OpaqueArrayType) => SPV_STORAGE_CLASS_UNIFORM_CONSTANT,
+                            _ => SPV_STORAGE_CLASS_UNIFORM,
+                        },
+                    ]);
+                }
+                // Ordering issues with this, let's keep it after all other type pointers.
+                //
+                // instruction_inserts.push(InstructionInsert {
+                //     previous_spv_idx: v_idx,
+                //     instruction: new_instruction,
+                // });
+                types_header_insert
+                    .instruction
+                    .append(&mut new_type_instructions);
+                let old_result_id = spv[vfp_idx + 2];
+                let new_ids = (base_id..base_id + length).collect::<Vec<_>>();
+                affected_decorations.push(AffectedDecoration {
+                    original_res_id: old_result_id,
+                    new_res_ids: new_ids,
+                    correction_type: CorrectionType::SplitBindingArray(length),
+                });
+            }
+            SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => {
+                let mut new_param_instructions = vec![];
+                for i in 0..length {
+                    new_param_instructions.append(&mut vec![
+                        encode_word(3, SPV_INSTRUCTION_OP_FUNCTION_PARAMETER),
+                        type_pointer_id,
+                        base_id + i,
+                    ]);
+                }
+                instruction_inserts.push(InstructionInsert {
+                    previous_spv_idx: vfp_idx,
+                    instruction: new_param_instructions,
+                });
 
-        let old_result_id = spv[vfp_idx + 2];
-        let new_ids = (base_id..base_id + length).collect::<Vec<_>>();
-        affected_decorations.push(AffectedDecoration {
-            original_res_id: old_result_id,
-            new_res_ids: new_ids,
-            correction_type: CorrectionType::SplitBindingArray(length),
-        });
+                let entry = get_function_from_parameter(&spv, vfp_idx);
+                let function_type_id = spv[entry.function_idx + 4];
+
+                // `entry.parameter_instruction_idx` is the 0-based ordinal of the parameter
+                // within the function; step 5 compares it against the loop variable `i`.
+                function_type_changes
+                    .entry(function_type_id)
+                    .or_insert(vec![])
+                    .push((entry.parameter_instruction_idx, type_pointer_id, length));
+            }
+            _ => unreachable!("Expected OpVariable or OpFunctionParameter"),
+        };
+
+        new_vfp_map.insert(vfp_idx, (base_id, ta_idx));
+    }
+
+    // 5. Change affected OpTypeFunction
+    for &tf_idx in op_type_function_idxs.iter() {
+        let tf_result_id = spv[tf_idx + 1];
+
+        let Some(changes) = function_type_changes.get(&tf_result_id) else {
+            continue;
+        };
+
+        let tf_wc = hiword(spv[tf_idx]) as usize;
+        let num_params = tf_wc - 3;
+
+        let mut new_params: Vec<u32> = vec![];
+        let mut change_i = 0;
+        for i in 0..num_params {
+            if change_i < changes.len() && changes[change_i].0 == i {
+                let (_, type_ptr, length) = changes[change_i];
+                for _ in 0..length {
+                    new_params.push(type_ptr);
+                }
+                change_i += 1;
+            } else {
+                new_params.push(spv[tf_idx + 3 + i]);
+            }
+        }
+
+        new_spv[tf_idx..tf_idx + tf_wc].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+
+        let new_wc = (3 + new_params.len()) as u16;
+        let mut new_tf = vec![
+            encode_word(new_wc, SPV_INSTRUCTION_OP_TYPE_FUNCTION),
+            tf_result_id,
+            spv[tf_idx + 2], // return type (unchanged)
+        ];
+        new_tf.extend_from_slice(&new_params);
+        types_header_insert.instruction.extend_from_slice(&new_tf);
     }
 
     let access_idxs = op_access_chain_idxs
@@ -260,7 +330,7 @@ pub fn splitbindingarray(
         })
         .collect::<Vec<_>>();
 
-    // 5. Trace array samplers into a map
+    // 6. Trace array samplers into a map
     // Arrayed samplers turn our neat trace tree into a DAG.
     // To keep things simple, we handle samplers separately.
     // See `opaque_trace.rs` for details.
@@ -284,7 +354,7 @@ pub fn splitbindingarray(
         }
     }
 
-    // 6. Replace OpAccessChain with selection function
+    // 7. Replace OpAccessChain with selection function
     for &(ac_idx, vfp_idx, ta_idx, array_type) in access_idxs.iter() {
         let ac_word_count = hiword(spv[ac_idx]) as usize;
         new_spv[ac_idx..ac_idx + ac_word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
@@ -294,7 +364,7 @@ pub fn splitbindingarray(
 
         let length = length_map[&ta_idx];
 
-        let base_id = new_variables_map[vfp_idx];
+        let (base_id, _) = new_vfp_map[vfp_idx];
 
         if let Some(OpaqueArrayType) = *array_type {
             // When both a texture array and a sampler array feed the same OpSampledImage,
@@ -365,7 +435,7 @@ pub fn splitbindingarray(
                     if let Some((sampler_array_ac_idx, sampler_array_v_idx, sampler_array_ta_idx)) =
                         maybe_sampler_array_data
                     {
-                        let sampler_base_id = new_variables_map[sampler_array_v_idx];
+                        let (sampler_base_id, _) = new_vfp_map[sampler_array_v_idx];
                         let sampler_index_0_id = spv[sampler_array_ac_idx + 4];
                         let sampler_length = length_map[sampler_array_ta_idx] as usize;
 
@@ -578,12 +648,58 @@ pub fn splitbindingarray(
         }
     }
 
-    // 7. Find OpDecorate / OpName to OpVariable
+    // 8. Replace all OpFunctionCall references of arrayed resources
+    let new_vfp_id_map = new_vfp_map
+        .iter()
+        .map(|(&vfp_idx, &v)| {
+            let result_id = spv[vfp_idx + 2];
+            (result_id, v)
+        })
+        .collect::<HashMap<_, _>>();
+    for &function_call_idx in op_function_call_idxs.iter() {
+        const ARGUMENT_OFFSET: usize = 4;
+        let word_count = hiword(spv[function_call_idx]) as usize;
+        let mut arguments = vec![];
+        for &argument_id in spv
+            .iter()
+            .take(function_call_idx + word_count)
+            .skip(function_call_idx + ARGUMENT_OFFSET)
+        {
+            if let Some(&(base_id, ta_idx)) = new_vfp_id_map.get(&argument_id) {
+                let length = length_map[&ta_idx];
+                for i in 0..length {
+                    arguments.push(base_id + i);
+                }
+            } else {
+                arguments.push(argument_id)
+            }
+        }
+
+        if arguments.len() != word_count - ARGUMENT_OFFSET {
+            new_spv[function_call_idx..function_call_idx + word_count]
+                .fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
+            let new_instruction = [
+                &[encode_word(
+                    (arguments.len() + ARGUMENT_OFFSET) as u16,
+                    SPV_INSTRUCTION_OP_FUNCTION_CALL,
+                )],
+                &spv[function_call_idx + 1..function_call_idx + ARGUMENT_OFFSET],
+                arguments.as_slice(),
+            ]
+            .concat();
+            instruction_inserts.push(InstructionInsert {
+                previous_spv_idx: function_call_idx,
+                instruction: new_instruction,
+            });
+        }
+    }
+
+    // 9. Find OpDecorate / OpName to OpVariable
     let unused_decorate_idxs = op_decorate_idxs
         .iter()
         .filter(|&idx| {
             let target = spv[idx + 1];
-            new_variables_map.iter().any(|(vfp_idx, _)| {
+            new_vfp_map.iter().any(|(vfp_idx, _)| {
                 let result_id = spv[vfp_idx + 2];
                 target == result_id
             })
@@ -594,7 +710,7 @@ pub fn splitbindingarray(
         .iter()
         .filter(|&idx| {
             let target = spv[idx + 1];
-            new_variables_map.iter().any(|(vfp_idx, _)| {
+            new_vfp_map.iter().any(|(vfp_idx, _)| {
                 let result_id = spv[vfp_idx + 2];
                 target == result_id
             })
@@ -602,7 +718,7 @@ pub fn splitbindingarray(
         .copied()
         .collect::<Vec<_>>();
 
-    // 8. Remove Instructions that have been Whited Out.
+    // 10. Remove Instructions that have been Whited Out.
     for &spv_idx in unused_decorate_idxs.iter().chain(unused_name_idxs.iter()) {
         let op = spv[spv_idx];
         let word_count = hiword(op) as usize;
@@ -610,7 +726,7 @@ pub fn splitbindingarray(
         new_spv[spv_idx..spv_idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
     }
 
-    // 9. OpDecorate
+    // 11. OpDecorate
     let DecorateOut {
         descriptor_sets_to_correct,
     } = util::decorate(DecorateIn {
@@ -622,17 +738,17 @@ pub fn splitbindingarray(
         corrections,
     });
 
-    // 10. Insert New Instructions
+    // 12. Insert New Instructions
     instruction_inserts.insert(0, types_header_insert);
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);
 
-    // 11. Correct OpDecorate Bindings
+    // 13. Correct OpDecorate Bindings
     util::correct_decorate(CorrectDecorateIn {
         new_spv: &mut new_spv,
         descriptor_sets_to_correct,
     });
     prune_noops(&mut new_spv);
 
-    // 12. Write New Header and New Code
+    // 14. Write New Header and New Code
     Ok(fuse_final(spv_header, new_spv, instruction_bound))
 }
