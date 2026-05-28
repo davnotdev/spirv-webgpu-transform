@@ -15,6 +15,7 @@ pub enum CorrectionType {
     /// A storage cube texture has been converted into a storage texture 2D array, change the dimension.
     ConvertStorageCube,
     /// A binding array has been split into new variables. Insert the same resource again.
+    /// For an `N` sized array, expect `N-1` entries.
     SplitBindingArray,
 }
 

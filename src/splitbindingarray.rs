@@ -241,7 +241,22 @@ pub fn splitbindingarray(
                     .instruction
                     .append(&mut new_type_instructions);
                 let old_result_id = spv[vfp_idx + 2];
-                let new_ids = (base_id..base_id + length).collect::<Vec<_>>();
+
+                // We manually correct the base variable to reuse the original decorations.
+                // That way, we can output `N-1` correction bindings.
+                for &d_idx in op_decorate_idxs.iter() {
+                    if spv[d_idx + 1] == old_result_id {
+                        new_spv[d_idx + 1] = base_id;
+                    }
+                }
+                for &n_idx in op_name_idxs.iter() {
+                    if spv[n_idx + 1] == old_result_id {
+                        new_spv[n_idx + 1] = base_id;
+                    }
+                }
+
+                // We only want `N-1` correction bindings.
+                let new_ids = (base_id + 1..base_id + length).collect::<Vec<_>>();
                 affected_decorations.push(AffectedDecoration {
                     original_res_id: old_result_id,
                     new_res_ids: new_ids,
@@ -697,8 +712,11 @@ pub fn splitbindingarray(
     // 9. Find OpDecorate / OpName to OpVariable
     let unused_decorate_idxs = op_decorate_idxs
         .iter()
-        .filter(|&idx| {
+        .filter(|&&idx| {
             let target = spv[idx + 1];
+            if new_spv[idx + 1] != target {
+                return false;
+            }
             new_vfp_map.iter().any(|(vfp_idx, _)| {
                 let result_id = spv[vfp_idx + 2];
                 target == result_id
@@ -708,8 +726,11 @@ pub fn splitbindingarray(
         .collect::<Vec<_>>();
     let unused_name_idxs = op_name_idxs
         .iter()
-        .filter(|&idx| {
+        .filter(|&&idx| {
             let target = spv[idx + 1];
+            if new_spv[idx + 1] != target {
+                return false;
+            }
             new_vfp_map.iter().any(|(vfp_idx, _)| {
                 let result_id = spv[vfp_idx + 2];
                 target == result_id
