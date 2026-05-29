@@ -4,6 +4,7 @@ use super::*;
 // A: I don't want to think about it... I will start thinking after a refactor...
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[repr(u16)]
 pub enum CorrectionType {
     /// A combined image sampler has been split, a new `sampler` object should be inserted.
     SplitCombined,
