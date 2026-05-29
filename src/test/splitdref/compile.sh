@@ -10,5 +10,6 @@ glslc test_mixed_dref.frag -o test_mixed_dref.spv
 glslc test_hidden_dref.frag -o test_hidden_dref.spv
 glslc test_hidden2_dref.frag -o test_hidden2_dref.spv
 glslc test_hidden3_dref.frag -o test_hidden3_dref.spv
+glslc test_cross_dref.frag -o test_cross_dref.spv
 spirv-as test_wrong_type_image.spvasm -o test_wrong_type_image.spv
 

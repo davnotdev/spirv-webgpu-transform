@@ -190,11 +190,11 @@ pub fn drefsplitter(
         .collect::<Vec<_>>();
 
     // 5. Find the images that mismatch operations
-    let mut mixed_object_ids = HashMap::new();
+    let mut object_flags = HashMap::new();
     let mut patch_object_id_to_loads = HashMap::new();
 
     for (id, load_idx, ty) in object_ids.iter().copied() {
-        let entry = mixed_object_ids.entry(id).or_insert((false, false));
+        let entry = object_flags.entry(id).or_insert((false, false));
 
         match ty {
             OperationVariant::Regular => entry.0 = true,
@@ -208,10 +208,54 @@ pub fn drefsplitter(
             .push((load_idx, ty));
     }
 
-    let mixed_object_ids = mixed_object_ids
-        .into_iter()
-        .filter_map(|(id, (uses_regular, uses_dref))| (uses_regular && uses_dref).then_some(id))
+    let mixed_object_ids = object_flags
+        .iter()
+        .filter_map(|(&id, &(uses_regular, uses_dref))| (uses_regular && uses_dref).then_some(id))
         .collect::<Vec<_>>();
+
+    // 6. Mix object flags from across contexts (OpVariable + OpFunctionArgument)
+    // See `test_cross_dref.spv` and `test_hidden3_dref.spv`.
+    let mut aggregate_flags: HashMap<PatchObjectType<usize>, (bool, bool)> = HashMap::new();
+    for (&id, &flags) in object_flags.iter() {
+        if let Some(&v_idx) = op_variable_idxs
+            .iter()
+            .find(|&&idx| spv[idx + 2] == id.inner())
+        {
+            let entry = aggregate_flags
+                .entry(id.next(v_idx))
+                .or_insert((false, false));
+            entry.0 |= flags.0;
+            entry.1 |= flags.1;
+        }
+    }
+    for (&id, &flags) in object_flags.iter() {
+        if let Some(&fp_idx) = op_function_parameter_idxs
+            .iter()
+            .find(|&&idx| spv[idx + 2] == id.inner())
+        {
+            let entry = get_function_from_parameter(&spv, fp_idx);
+            let mut traced = vec![];
+            let variables =
+                trace_function_argument_to_variables(TraceFunctionArgumentToVariablesIn {
+                    spv: &spv,
+                    op_variable_idxs: &op_variable_idxs,
+                    op_function_parameter_idxs: &op_function_parameter_idxs,
+                    op_function_call_idxs: &op_function_call_idxs,
+                    entry,
+                    traced_function_call_idxs: &mut traced,
+                });
+            for v_idx in variables {
+                if let Some(entry) = aggregate_flags.get_mut(&id.next(v_idx)) {
+                    entry.0 |= flags.0;
+                    entry.1 |= flags.1;
+                }
+            }
+        }
+    }
+    let aggregate_mixed_variables = aggregate_flags
+        .into_iter()
+        .filter_map(|(g, (uses_regular, uses_dref))| (uses_regular && uses_dref).then_some(g))
+        .collect::<HashSet<_>>();
 
     // 6. Find the OpVariable of the mismatched images
     let patch_variable_idxs = op_variable_idxs
@@ -269,9 +313,6 @@ pub fn drefsplitter(
         })
         .collect::<Vec<_>>();
 
-    // Filter out PotentiallyMixed parameters that don't relate to any Mixed function parameters or
-    // mixed variables
-    // TODO: This cannot handle mixing between different contexts, see `test_hidden3_dref.frag`
     let function_patch_variables_with_calls = function_patch_variables_with_calls
         .iter()
         .cloned()
@@ -286,7 +327,10 @@ pub fn drefsplitter(
                 },
             ) || patch_variable_idxs
                 .iter()
-                .any(|idx| variables.iter().any(|va| va == idx)))
+                .any(|idx| variables.iter().any(|va| va == idx))
+                || variables
+                    .iter()
+                    .any(|va| aggregate_mixed_variables.contains(va)))
             .then_some((variables, calls)),
         })
         .collect::<Vec<_>>();

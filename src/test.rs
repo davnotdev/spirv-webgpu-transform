@@ -11,6 +11,7 @@ mod test_mirrorpatch;
 const SPV_VALIDATE: u8 = 0b0000001;
 const NAGA_VALIDATE: u8 = 0b0000010;
 const NAGA_CONVERT: u8 = 0b0000100;
+const NAGA_FRONT_ONLY: u8 = 0b0001000;
 const DO_ALL: u8 = 0xff;
 
 #[macro_export]
@@ -44,6 +45,10 @@ fn try_spv_to_wgsl(spv: &[u32], flags: u8) {
     if flags & SPV_VALIDATE != 0 {
         let validator = val::create(None);
         validator.validate(spv, None).unwrap();
+    }
+
+    if flags & NAGA_FRONT_ONLY != 0 {
+        front::spv::parse_u8_slice(&spv_u8, &front::spv::Options::default()).unwrap();
     }
 
     if flags & NAGA_VALIDATE != 0 {
@@ -129,20 +134,26 @@ test_with_spv_and_fn!(
 );
 test_with_spv_and_fn!(
     splitdref_test_hidden_dref,
-    SPV_VALIDATE,
+    SPV_VALIDATE | NAGA_FRONT_ONLY,
     "./test/splitdref/test_hidden_dref.spv",
     drefsplitter
 );
 test_with_spv_and_fn!(
     splitdref_test_hidden2_dref,
-    SPV_VALIDATE,
+    SPV_VALIDATE | NAGA_FRONT_ONLY,
     "./test/splitdref/test_hidden2_dref.spv",
     drefsplitter
 );
 test_with_spv_and_fn!(
     splitdref_test_hidden3_dref,
-    SPV_VALIDATE,
+    SPV_VALIDATE | NAGA_FRONT_ONLY,
     "./test/splitdref/test_hidden3_dref.spv",
+    drefsplitter
+);
+test_with_spv_and_fn!(
+    splitdref_test_cross_dref,
+    SPV_VALIDATE | NAGA_FRONT_ONLY,
+    "./test/splitdref/test_cross_dref.spv",
     drefsplitter
 );
 
