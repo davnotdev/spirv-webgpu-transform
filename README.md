@@ -11,6 +11,9 @@ This project aims to transform common but unsupported SPIRV shaders into a form 
 
 This also includes an interface for some dodging unsupported features or features that may not run on older browser versions.
 
+> Under heavy development.
+> Remember, the published crate source may lag behind the github source!
+
 ## Feature Summary
 
 At the moment, the following transformations are supported:
@@ -217,8 +220,8 @@ void main() {
 | `test_nested2_image.frag`         | ✅          | ❌\*   | ❌   |
 | `test_hidden_dref.frag`           | ✅          | ❌\*   | ❌   |
 | `test_hidden2_dref.frag`          | ✅          | ❌\*   | ❌   |
-| `test_hidden3_dref.frag`          | ❌          | ❌\*   | ❌   |
-| `test_cross_dref.frag`            | ❌          | ❌\*   | ❌   |
+| `test_hidden3_dref.frag`          | ✅          | ❌\*   | ❌   |
+| `test_cross_dref.frag`            | ✅          | ❌\*   | ❌   |
 
 > \* With some [special patches](https://github.com/davnotdev/wgpu/tree/trunk-naga-patches), `naga` can process these.
 
