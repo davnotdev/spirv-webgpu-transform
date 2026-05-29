@@ -7,3 +7,4 @@ set -e
 (cd storagecubepatch; ./compile.sh)
 (cd pruneunuseddref; ./compile.sh)
 (cd immediatespatch; ./compile.sh)
+(cd splitbindingarray; ./compile.sh)

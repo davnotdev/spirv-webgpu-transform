@@ -214,7 +214,7 @@ fn patch_spv_decorations(
             // Convert into affected decoration
             Ok(AffectedDecoration {
                 original_res_id: original_variable_id,
-                new_res_id,
+                new_res_ids: vec![new_res_id],
                 correction_type,
             })
         })

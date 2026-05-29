@@ -186,7 +186,6 @@ pub fn pruneunuseddref(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
 
         new_spv[spv_idx..spv_idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
     }
-
     prune_noops(&mut new_spv);
 
     // 10. Write New Header and New Code

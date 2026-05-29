@@ -5,7 +5,7 @@ fn main() {
 
     if args.len() != 4 {
         eprintln!(
-            "Usage: spv_webgpu_transform <combimg|dref|isnanisinf|storagecube|pruneunuseddref|immediates> <input.spv> <output.spv>"
+            "Usage: spv_webgpu_transform <combimg|dref|isnanisinf|storagecube|pruneunuseddref|immediates|bindingarray> <input.spv> <output.spv>"
         );
         process::exit(1);
     }
@@ -32,6 +32,9 @@ fn main() {
         }
         "pruneunuseddref" => spirv_webgpu_transform::pruneunuseddref(&spv).unwrap(),
         "immediates" => spirv_webgpu_transform::immediatespatch(&spv).unwrap(),
+        "bindingarray" => {
+            spirv_webgpu_transform::splitbindingarray(&spv, &mut out_correction_map).unwrap()
+        }
         mode => {
             eprintln!("unknown mode {:?}", mode);
             process::exit(1)

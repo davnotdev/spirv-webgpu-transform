@@ -3,18 +3,20 @@ use super::*;
 // Q: Hey what happens when you stack corrections?
 // A: I don't want to think about it... I will start thinking after a refactor...
 
-#[repr(u16)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CorrectionType {
     /// A combined image sampler has been split, a new `sampler` object should be inserted.
-    SplitCombined = 0,
+    SplitCombined,
     /// A mixed depth texture / sampler has been duplicated, insert the same object again with a `Regular` bind type.
-    SplitDrefRegular = 1,
+    SplitDrefRegular,
     /// A mixed depth texture / sampler has been duplicated, insert the same object again with a
     /// `Comparison` bind type.
-    SplitDrefComparison = 2,
+    SplitDrefComparison,
     /// A storage cube texture has been converted into a storage texture 2D array, change the dimension.
-    ConvertStorageCube = 3,
+    ConvertStorageCube,
+    /// A binding array has been split into new variables. Insert the same resource again.
+    /// For an `N` sized array, expect `N-1` entries.
+    SplitBindingArray,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

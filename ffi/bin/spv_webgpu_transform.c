@@ -40,6 +40,14 @@ int main() {
 	uint32_t pruneunuseddref_out_count;
 	spirv_webgpu_transform_pruneunuseddref_alloc(storagecube_out_spv, storagecube_out_count, &pruneunuseddref_out_spv, &pruneunuseddref_out_count);
 
+	uint32_t *immediates_out_spv;
+	uint32_t immediates_out_count;
+	spirv_webgpu_transform_immediatespatch_alloc(pruneunuseddref_out_spv, pruneunuseddref_out_count, &immediates_out_spv, &immediates_out_count);
+
+	uint32_t *splitbindingarray_out_spv;
+	uint32_t splitbindingarray_out_count;
+	spirv_webgpu_transform_splitbindingarray_alloc(immediates_out_spv, immediates_out_count, &splitbindingarray_out_spv, &splitbindingarray_out_count, &correction_map);
+
 	// 3. Observe the patched variables
 	print_set_binding(correction_map, 0, 0);
 	print_set_binding(correction_map, 0, 1);
@@ -51,6 +59,8 @@ int main() {
 	print_set_binding(correction_map, 3, 0);
 
 	// 4. Free memory
+	spirv_webgpu_transform_splitbindingarray_free(splitbindingarray_out_spv);
+	spirv_webgpu_transform_immediatespatch_free(immediates_out_spv);
 	spirv_webgpu_transform_pruneunuseddref_free(pruneunuseddref_out_spv);
 	spirv_webgpu_transform_storagecubepatch_free(storagecube_out_spv);
 	spirv_webgpu_transform_isnanisinfpatch_free(isnanisinf_out_spv);
@@ -87,6 +97,9 @@ void print_set_binding(TransformCorrectionMap map, uint32_t set, uint32_t bindin
 				break;
 			case SPIRV_WEBGPU_TRANSFORM_CORRECTION_TYPE_CONVERT_STORAGE_CUBE:
 				printf("CONVERT_STORAGE_CUBE ");
+				break;
+			case SPIRV_WEBGPU_TRANSFORM_CORRECTION_TYPE_SPLIT_BINDING_ARRAY:
+				printf("SPLIT_BINDING_ARRAY ");
 				break;
 		}
 	}

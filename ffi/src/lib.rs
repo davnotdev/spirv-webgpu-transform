@@ -3,7 +3,7 @@
 use core::{ffi, ptr, slice};
 use spirv_webgpu_transform::{
     CorrectionMap, combimgsampsplitter, drefsplitter, immediatespatch, isnanisinfpatch,
-    mirrorpatch, pruneunuseddref, storagecubepatch,
+    mirrorpatch, pruneunuseddref, splitbindingarray, storagecubepatch,
 };
 
 type TransformCorrectionMap = *mut ffi::c_void;
@@ -200,6 +200,35 @@ pub unsafe extern "C" fn spirv_webgpu_transform_pruneunuseddref_free(out_spv: *m
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn spirv_webgpu_transform_splitbindingarray_alloc(
+    in_spv: *const u32,
+    in_count: u32,
+    out_spv: *mut *const u32,
+    out_count: *mut u32,
+    correction_map: *mut TransformCorrectionMap,
+) {
+    let correction_map = unsafe { alloc_or_pass_correction_map(correction_map) };
+
+    let in_spv = unsafe { slice::from_raw_parts(in_spv, in_count as usize) };
+    match splitbindingarray(in_spv, correction_map) {
+        Ok(spv) => unsafe {
+            *out_count = spv.len() as u32;
+            let leaked = Box::leak(spv.into_boxed_slice());
+            *out_spv = leaked.as_ptr();
+        },
+        Err(_) => unsafe {
+            *out_spv = ptr::null();
+            *out_count = 0;
+        },
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn spirv_webgpu_transform_splitbindingarray_free(out_spv: *mut u32) {
+    unsafe { drop(Box::from_raw(out_spv)) }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn spirv_webgpu_transform_mirrorpatch_alloc(
     in_left_spv: *const u32,
     in_left_count: u32,
@@ -267,6 +296,8 @@ pub enum TransformCorrectionType {
     SpirvWebgpuTransformCorrectionTypeSplitCombined = 0,
     SpirvWebgpuTransformCorrectionTypeSplitDrefRegular = 1,
     SpirvWebgpuTransformCorrectionTypeSplitDrefComparison = 2,
+    SpirvWebgpuTransformCorrectionTypeConvertStorageCube = 3,
+    SpirvWebgpuTransformCorrectionTypeSplitBindingArray = 4,
 }
 
 // TransformCorrectionStatus spirv_webgpu_transform_correction_map_index(uint32_t set, uint32_t binding, TransformCorrectionType** corrections_ptr, uint32_t* correction_count);

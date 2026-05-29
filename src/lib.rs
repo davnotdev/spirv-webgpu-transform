@@ -10,6 +10,7 @@
 //! | --------------------------------- | ----------- | ------ | ------ |
 //! | Combined Image Samplers           | ✅          | ✅     | ✅     |
 //! | Immediates (Push Constants)       | ✅          | ✅\*   | ✅     |
+//! | Binding Arrays                    | ✅          | ✅     | ✅     |
 //! | Mixed Depth / Comparison          | ✅          | ⚠️\*   | ❌     |
 //! | isnan / isinf Patching            | ✅          | ✅     | ✅     |
 //! | Storage Cube Patching             | ✅          | ✅     | ✅     |
@@ -35,6 +36,7 @@ mod immediatespatch;
 mod isnanisinfpatch;
 mod mirrorpatch;
 mod pruneunuseddref;
+mod splitbindingarray;
 mod splitcombined;
 mod splitdref;
 mod spv;
@@ -52,6 +54,7 @@ pub use immediatespatch::*;
 pub use isnanisinfpatch::*;
 pub use mirrorpatch::*;
 pub use pruneunuseddref::*;
+pub use splitbindingarray::*;
 pub use splitcombined::*;
 pub use splitdref::*;
 pub use storagecubepatch::*;
