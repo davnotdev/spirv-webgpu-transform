@@ -44,10 +44,9 @@ where
 
 /// Perform the operation on a `Vec<u32>`.
 /// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`.
-/// Does not produce any side effects or corrections.
 pub fn storagecubepatch(
     in_spv: &[u32],
-    corrections: &mut Option<CorrectionMap>,
+    corrections: &mut CorrectionMap,
 ) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 

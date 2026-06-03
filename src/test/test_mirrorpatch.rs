@@ -19,8 +19,8 @@ fn test_basic_mirrorpatch_inner(vert_spv: &[u8], frag_spv: &[u8], assert_fn: Ass
     let vert_spv = u8_slice_to_u32_vec(vert_spv);
     let frag_spv = u8_slice_to_u32_vec(frag_spv);
 
-    let mut left_map = None;
-    let mut right_map = None;
+    let mut left_map = CorrectionMap::default();
+    let mut right_map = CorrectionMap::default();
 
     let vert_spv = combimgsampsplitter(&vert_spv, &mut left_map).unwrap();
     let frag_spv = combimgsampsplitter(&frag_spv, &mut right_map).unwrap();
@@ -34,12 +34,7 @@ fn test_basic_mirrorpatch_inner(vert_spv: &[u8], frag_spv: &[u8], assert_fn: Ass
     let (new_l_spv, new_r_spv) =
         mirrorpatch(&vert_spv, &mut left_map, &frag_spv, &mut right_map).unwrap();
 
-    assert_fn(
-        new_l_spv,
-        left_map.as_ref().unwrap(),
-        new_r_spv,
-        right_map.as_ref().unwrap(),
-    );
+    assert_fn(new_l_spv, &left_map, new_r_spv, &right_map);
 }
 
 fn test_mirrorpatch1_assert(
@@ -65,11 +60,15 @@ fn test_mirrorpatch2_assert(
     let mut l = l.clone();
 
     l.sets
+        .as_mut()
+        .unwrap()
         .get_mut(&0)
         .unwrap()
         .bindings
         .insert(1, CorrectionBinding::default());
     l.sets
+        .as_mut()
+        .unwrap()
         .get_mut(&0)
         .unwrap()
         .bindings

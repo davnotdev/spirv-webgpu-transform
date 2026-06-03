@@ -15,7 +15,7 @@ pub struct DecorateIn<'a> {
     pub op_decorate_idxs: &'a [usize],
 
     pub affected_decorations: &'a [AffectedDecoration],
-    pub corrections: &'a mut Option<CorrectionMap>,
+    pub corrections: &'a mut CorrectionMap,
 }
 
 pub struct DecorateOut {
@@ -35,7 +35,7 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
     let mut descriptor_sets_to_correct = HashSet::new();
 
     // - If corrections is empty, we will need to build a new one using existing set bindings
-    let mut all_descriptor_sets = corrections.is_none().then_some(HashMap::new());
+    let mut all_descriptor_sets = corrections.sets.is_none().then_some(HashMap::new());
 
     // - Find the current binding and descriptor set pair for each combimgsamp
     op_decorate_idxs.iter().for_each(|&d_idx| {
@@ -108,7 +108,7 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
 
     // - If we need to, build a new correction map
     if let Some(all_descriptor_sets) = all_descriptor_sets {
-        let mut new_corrections = CorrectionMap::default();
+        let mut new_correction_sets = HashMap::new();
         let mut all_descriptor_sets = all_descriptor_sets.into_iter().collect::<Vec<_>>();
         all_descriptor_sets.sort_by_key(|(_, (maybe_binding, _))| maybe_binding.unwrap());
 
@@ -116,8 +116,7 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
             let set = set.unwrap();
             let binding = binding.unwrap();
 
-            new_corrections
-                .sets
+            new_correction_sets
                 .entry(set)
                 .or_insert(CorrectionSet::default())
                 .bindings
@@ -129,7 +128,7 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                 );
         }
 
-        *corrections = Some(new_corrections);
+        corrections.sets = Some(new_correction_sets);
     }
 
     let old_corrections = corrections.clone();
@@ -166,12 +165,12 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
             });
 
             // - Stamp our correction map with new variables
-            if let Some(bindings) = corrections.as_mut().unwrap().sets.get_mut(descriptor_set) {
+            if let Some(bindings) = corrections.sets.as_mut().unwrap().get_mut(descriptor_set) {
                 // NOTE: We do expect this to be sorted by binding
                 let mut input_bindings = old_corrections
+                    .sets
                     .as_ref()
                     .unwrap()
-                    .sets
                     .get(descriptor_set)
                     .unwrap()
                     .bindings

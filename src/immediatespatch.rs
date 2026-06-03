@@ -7,8 +7,7 @@ use layout::*;
 use type_registry::*;
 
 /// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`.
-/// Does not produce any side effects or corrections.
-pub fn immediatespatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
+pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 
     let instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
@@ -160,6 +159,8 @@ pub fn immediatespatch(in_spv: &[u32]) -> Result<Vec<u32>, ()> {
             ],
         });
     }
+
+    corrections.immediates_set = Some(next_set);
 
     // 8. Insert New Instructions
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);

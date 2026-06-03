@@ -5,7 +5,7 @@
 
 #define BAD_FILE_PATH "./bad.spv"
 
-void print_set_binding(TransformCorrectionMap map, uint32_t set, uint32_t binding);
+void print_set_binding(SpvTransformCorrectionMap map, uint32_t set, uint32_t binding);
 
 int main() {
 	// 1. Read the SPIRV file
@@ -18,7 +18,7 @@ int main() {
 	fclose(file);
 
 	// 2. Run the transformations
-	TransformCorrectionMap correction_map = SPIRV_WEBGPU_TRANSFORM_CORRECTION_MAP_NULL;
+	SpvTransformCorrectionMap correction_map = {};
 
 	uint32_t *comb_out_spv;
 	uint32_t comb_out_count;
@@ -42,7 +42,7 @@ int main() {
 
 	uint32_t *immediates_out_spv;
 	uint32_t immediates_out_count;
-	spirv_webgpu_transform_immediatespatch_alloc(pruneunuseddref_out_spv, pruneunuseddref_out_count, &immediates_out_spv, &immediates_out_count);
+	spirv_webgpu_transform_immediatespatch_alloc(pruneunuseddref_out_spv, pruneunuseddref_out_count, &immediates_out_spv, &immediates_out_count, &correction_map);
 
 	uint32_t *splitbindingarray_out_spv;
 	uint32_t splitbindingarray_out_count;
@@ -58,6 +58,9 @@ int main() {
 	print_set_binding(correction_map, 1, 1);
 	print_set_binding(correction_map, 3, 0);
 
+	// Test linking
+	spirv_webgpu_transform_correction_immediates_set(correction_map);
+
 	// 4. Free memory
 	spirv_webgpu_transform_splitbindingarray_free(splitbindingarray_out_spv);
 	spirv_webgpu_transform_immediatespatch_free(immediates_out_spv);
@@ -70,17 +73,17 @@ int main() {
 	free(spirv);
 }
 
-void print_set_binding(TransformCorrectionMap map, uint32_t set, uint32_t binding) {
+void print_set_binding(SpvTransformCorrectionMap map, uint32_t set, uint32_t binding) {
 	uint16_t *corrections;
 	uint32_t correction_count;
-	TransformCorrectionStatus status = spirv_webgpu_transform_correction_map_index(map, set, binding, &corrections, &correction_count);
+	uint8_t status = spirv_webgpu_transform_correction_sets_index(map, set, binding, &corrections, &correction_count);
 
 	printf("For set %d, binding %d:\n", set, binding);
 
-	if (status == SPIRV_WEBGPU_TRANSFORM_CORRECTION_STATUS_NONE) {
-		printf("\tNone\n");
-	} else {
+	if (status) {
 		printf("\tSome\n");
+	} else {
+		printf("\tNone\n");
 	}
 
 	printf("\t");

@@ -21,7 +21,7 @@ macro_rules! test_with_spv_and_fn {
         fn $NAME() {
             let spv = include_bytes!($SPV);
             let spv = u8_slice_to_u32_vec(spv);
-            let out_spv = $FN(&spv, &mut None).unwrap();
+            let out_spv = $FN(&spv, &mut Default::default()).unwrap();
             try_spv_to_wgsl(&out_spv, $FLAGS);
         }
     };
@@ -223,7 +223,7 @@ test_with_spv_and_fn_no_correction![
 
 // ---
 
-test_with_spv_and_fn_no_correction![
+test_with_spv_and_fn![
     immediatespatch_immediatespatch_immediates,
     DO_ALL,
     "./test/immediatespatch/immediates.spv",
@@ -231,25 +231,25 @@ test_with_spv_and_fn_no_correction![
 ];
 // TODO: This is valid, just not supported in current naga.
 // Someone check on this in a month or so, I think the fix has been merged.
-test_with_spv_and_fn_no_correction![
+test_with_spv_and_fn![
     immediatespatch_mat2_direct,
     SPV_VALIDATE,
     "./test/immediatespatch/mat2_direct.spv",
     immediatespatch
 ];
-test_with_spv_and_fn_no_correction![
+test_with_spv_and_fn![
     immediatespatch_array_of_mat2,
     DO_ALL,
     "./test/immediatespatch/array_of_mat2.spv",
     immediatespatch
 ];
-test_with_spv_and_fn_no_correction![
+test_with_spv_and_fn![
     immediatespatch_nested_struct,
     DO_ALL,
     "./test/immediatespatch/nested_struct.spv",
     immediatespatch
 ];
-test_with_spv_and_fn_no_correction![
+test_with_spv_and_fn![
     immediatespatch_row_major,
     DO_ALL,
     "./test/immediatespatch/row_major.spv",

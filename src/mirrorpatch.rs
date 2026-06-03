@@ -9,11 +9,11 @@ type LeftRightOutput = (Option<Vec<u32>>, Option<Vec<u32>>);
 /// the vertex and fragment shader may have a different layout after a set of transformations
 pub fn mirrorpatch(
     left_spv: &[u32],
-    left_corrections: &mut Option<CorrectionMap>,
+    left_corrections: &mut CorrectionMap,
     right_spv: &[u32],
-    right_corrections: &mut Option<CorrectionMap>,
+    right_corrections: &mut CorrectionMap,
 ) -> Result<LeftRightOutput, ()> {
-    if left_corrections.is_none() && right_corrections.is_none() {
+    if left_corrections.sets.is_none() && right_corrections.sets.is_none() {
         return Ok((None, None));
     }
 
@@ -23,14 +23,8 @@ pub fn mirrorpatch(
     let mut left_instruction_bound = left_spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
     let mut right_instruction_bound = right_spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
 
-    let left_corrections_map = left_corrections
-        .as_ref()
-        .map(|correction_map| correction_map.sets.clone())
-        .unwrap_or_default();
-    let right_corrections_map = right_corrections
-        .as_ref()
-        .map(|correction_map| correction_map.sets.clone())
-        .unwrap_or_default();
+    let left_corrections_map = left_corrections.sets.as_ref().cloned().unwrap_or_default();
+    let right_corrections_map = right_corrections.sets.as_ref().cloned().unwrap_or_default();
 
     let mut scan_set_idxs = left_corrections_map
         .keys()
@@ -118,7 +112,7 @@ struct NewVariable {
 
 fn patch_spv_decorations(
     in_spv: &[u32],
-    corrections: &mut Option<CorrectionMap>,
+    corrections: &mut CorrectionMap,
     new_instruction_bound: u32,
     affected_decorations: &[NewVariable],
 ) -> Result<Vec<u32>, ()> {

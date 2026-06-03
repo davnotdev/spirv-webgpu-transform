@@ -19,7 +19,7 @@ fn main() {
 
     let spv = spirv_webgpu_transform::u8_slice_to_u32_vec(&spv_bytes);
 
-    let mut out_correction_map = None;
+    let mut out_correction_map = Default::default();
 
     let out_spv = match mode.as_str() {
         "combimg" => {
@@ -31,7 +31,9 @@ fn main() {
             spirv_webgpu_transform::storagecubepatch(&spv, &mut out_correction_map).unwrap()
         }
         "pruneunuseddref" => spirv_webgpu_transform::pruneunuseddref(&spv).unwrap(),
-        "immediates" => spirv_webgpu_transform::immediatespatch(&spv).unwrap(),
+        "immediates" => {
+            spirv_webgpu_transform::immediatespatch(&spv, &mut out_correction_map).unwrap()
+        }
         "bindingarray" => {
             spirv_webgpu_transform::splitbindingarray(&spv, &mut out_correction_map).unwrap()
         }
@@ -47,11 +49,15 @@ fn main() {
     eprintln!("Writing patched result to {}", output_path);
     fs::write(output_path, out_spv_bytes).unwrap();
 
+    if let Some(immediates_set) = out_correction_map.immediates_set {
+        println!("Immediates set: {}", immediates_set);
+    }
+
     // Remember to sort your hash maps!
-    if let Some(correction_map) = out_correction_map {
+    if let Some(sets) = out_correction_map.sets {
         eprintln!("Finished, patch summary: \n");
 
-        let mut sets = correction_map.sets.iter().collect::<Vec<_>>();
+        let mut sets = sets.iter().collect::<Vec<_>>();
         sets.sort_by_key(|(k, _)| **k);
         for (set_num, set) in sets {
             println!("Set {}:", set_num);
@@ -63,6 +69,6 @@ fn main() {
             }
         }
     } else {
-        eprintln!("Finished, no correction output map.");
+        eprintln!("Finished, no correction output sets.");
     }
 }
