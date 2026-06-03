@@ -84,7 +84,7 @@ pub unsafe extern "C" fn spirv_webgpu_transform_correction_sets_index(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn spirv_webgpu_transform_correction_immediates_set(
+pub unsafe extern "C" fn spirv_webgpu_transform_correction_read_immediates_set(
     correction_map: SpvTransformCorrectionMap,
 ) -> SpvTransformOptionalU32 {
     if !correction_map.is_null() {
@@ -97,4 +97,13 @@ pub unsafe extern "C" fn spirv_webgpu_transform_correction_immediates_set(
         some: C_FALSE,
         ..Default::default()
     }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn spirv_webgpu_transform_correction_write_immediates_set(
+    correction_map: *mut SpvTransformCorrectionMap,
+    value: u32,
+) {
+    let correction_map = unsafe { cast_correction_map_or_default_alloc(correction_map) };
+    correction_map.immediates_set = Some(value)
 }

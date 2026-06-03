@@ -59,7 +59,8 @@ int main() {
 	print_set_binding(correction_map, 3, 0);
 
 	// Test linking
-	spirv_webgpu_transform_correction_immediates_set(correction_map);
+	spirv_webgpu_transform_correction_read_immediates_set(correction_map);
+	spirv_webgpu_transform_correction_write_immediates_set(&correction_map, 128);
 
 	// 4. Free memory
 	spirv_webgpu_transform_splitbindingarray_free(splitbindingarray_out_spv);

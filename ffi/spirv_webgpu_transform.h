@@ -59,8 +59,10 @@ SPIRV_WEBGPU_TRANSFORM_BOOL spirv_webgpu_transform_correction_sets_index(
 		uint16_t **corrections_ptr,
 		uint32_t *correction_count);
 
-SpvTransformOptionalU32 spirv_webgpu_transform_correction_immediates_set(
+SpvTransformOptionalU32 spirv_webgpu_transform_correction_read_immediates_set(
 		SpvTransformCorrectionMap correction_map);
+void spirv_webgpu_transform_correction_write_immediates_set(
+		SpvTransformCorrectionMap *correction_map, uint32_t value);
 
 void spirv_webgpu_transform_correction_map_free(SpvTransformCorrectionMap correction_map);
 
