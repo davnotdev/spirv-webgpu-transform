@@ -16,7 +16,7 @@ extern "C" {
 		T value;                          \
 	}
 
-typedef void *SpvTransformCorrectionMap;
+typedef struct _SpvTransformCorrectionMap *SpvTransformCorrectionMap;
 
 typedef DEFINE_OPTIONAL(uint32_t) SpvTransformOptionalU32;
 
