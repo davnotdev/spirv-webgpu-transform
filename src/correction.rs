@@ -37,6 +37,8 @@ pub struct CorrectionSet {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CorrectionMap {
     pub sets: Option<HashMap<u32, CorrectionSet>>,
-    /// The max set plus one, representing the location of immediates converted to uniforms
+    /// Represents both an input/output where the immediate uniforms should/is written to.
+    /// Control the set immediates should be written to by setting before patching.
+    /// If this is [`None`], this becomes the max set plus one.
     pub immediates_set: Option<u32>,
 }

@@ -132,16 +132,19 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
 
     // 7. Place new uniforms in the set after the last set.
     let first_op_decorate_idx = op_decorate_idxs.first().copied();
-    let next_set = op_decorate_idxs
-        .iter()
-        .filter_map(|&d_idx| {
-            let decoration_id = spv[d_idx + 2];
-            let decoration_value = spv[d_idx + 3];
-            (decoration_id == SPV_DECORATION_DESCRIPTOR_SET).then_some(decoration_value)
-        })
-        .max()
-        .map(|max| max + 1)
-        .unwrap_or(0);
+    // TODO: What if our `immediates_set` value is faulty?
+    let next_set = corrections.immediates_set.unwrap_or_else(|| {
+        op_decorate_idxs
+            .iter()
+            .filter_map(|&d_idx| {
+                let decoration_id = spv[d_idx + 2];
+                let decoration_value = spv[d_idx + 3];
+                (decoration_id == SPV_DECORATION_DESCRIPTOR_SET).then_some(decoration_value)
+            })
+            .max()
+            .map(|max| max + 1)
+            .unwrap_or(0)
+    });
 
     for (binding_idx, &(_, _, var_id)) in pc_variables.iter().enumerate() {
         instruction_inserts.push(InstructionInsert {
