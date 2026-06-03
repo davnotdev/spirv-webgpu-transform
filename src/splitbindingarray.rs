@@ -32,10 +32,7 @@ use select_template::*;
 /// - No opaque types in structures
 /// - All UBOs and SSBO hold a structure and therefore are accessed with `OpAccessChain*` first.
 ///
-pub fn splitbindingarray(
-    in_spv: &[u32],
-    corrections: &mut CorrectionMap,
-) -> Result<Vec<u32>, ()> {
+pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 
     let mut instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
@@ -107,16 +104,6 @@ pub fn splitbindingarray(
         spv_idx += word_count as usize;
     }
 
-    // TODO: Implement for nested arrays.
-    for ta_idx in op_type_array_idxs.iter() {
-        let ta_underlying_id = spv[ta_idx + 2];
-        for ta_jdx in op_type_array_idxs.iter() {
-            if spv[ta_jdx + 2] == ta_underlying_id && ta_idx != ta_jdx {
-                unimplemented!("How dare you use nested arrays! (Unimplemented)");
-            }
-        }
-    }
-
     // 2. OpTypeArray -> OpTypePointer
     //      -> OpVariable
     //      -> OpFunctionParameter
@@ -167,6 +154,17 @@ pub fn splitbindingarray(
                 .map(|&(_, ta_idx, array_type)| (vfp_idx, ta_idx, array_type))
         })
         .collect::<Vec<_>>();
+
+    // TODO: Implement for nested arrays.
+    for ta_idx in op_type_array_idxs.iter() {
+        let ta_underlying_id = spv[ta_idx + 2];
+        for (_, ta_jdx, _) in array_tp_ta_idxs.iter() {
+            let j_result_id = spv[ta_jdx + 1];
+            if j_result_id == ta_underlying_id && ta_idx != ta_jdx {
+                unimplemented!("How dare you use nested arrays! (Unimplemented)");
+            }
+        }
+    }
 
     // 3. Build mapping of lengths
     let length_map = array_vfp_ta_idxs
