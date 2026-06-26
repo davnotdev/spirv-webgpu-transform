@@ -1,5 +1,6 @@
 use super::*;
 
+mod copy_decorate;
 mod correct_decorate;
 mod decorate;
 mod ensure;
@@ -8,6 +9,7 @@ mod instruction;
 mod opaque_trace;
 mod pointer;
 
+pub use copy_decorate::*;
 pub use correct_decorate::*;
 pub use decorate::*;
 pub use ensure::*;

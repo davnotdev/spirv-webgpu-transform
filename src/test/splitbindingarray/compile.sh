@@ -7,3 +7,4 @@ glslc -O0 sampler_binding_array.frag -o sampler_binding_array.spv
 glslc -O0 nested_texture_binding_array.frag -o nested_texture_binding_array.spv
 glslc -O0 sampler_stub.frag -o sampler_stub.spv
 glslc -O0 texture_array_binding_array.frag -o texture_array_binding_array.spv
+glslc -O0 image_binding_array.frag -o image_binding_array.spv

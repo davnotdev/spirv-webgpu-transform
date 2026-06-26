@@ -706,7 +706,24 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         }
     }
 
-    // 9. Find OpDecorate / OpName to OpVariable
+    // 9. Copy Old OpDecorate to New Variables.
+    for (&vfp_idx, &(base_id, ta_idx)) in new_vfp_map.iter() {
+        let old_id = spv[vfp_idx + 2];
+        let length = length_map[&ta_idx];
+
+        for i in 1..length {
+            let new_id = base_id + i;
+            copy_decorate(CopyDecorateIn {
+                spv: &spv,
+                op_decorate_idxs: &op_decorate_idxs,
+                instruction_inserts: &mut instruction_inserts,
+                old_id,
+                new_id,
+            });
+        }
+    }
+
+    // 10. Find OpDecorate / OpName to OpVariable
     let unused_decorate_idxs = op_decorate_idxs
         .iter()
         .filter(|&&idx| {
@@ -736,7 +753,7 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         .copied()
         .collect::<Vec<_>>();
 
-    // 10. Remove Instructions that have been Whited Out.
+    // 11. Remove Instructions that have been Whited Out.
     for &spv_idx in unused_decorate_idxs.iter().chain(unused_name_idxs.iter()) {
         let op = spv[spv_idx];
         let word_count = hiword(op) as usize;
@@ -744,7 +761,7 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         new_spv[spv_idx..spv_idx + word_count].fill(encode_word(1, SPV_INSTRUCTION_OP_NOP));
     }
 
-    // 11. OpDecorate
+    // 12. OpDecorate
     let DecorateOut {
         descriptor_sets_to_correct,
     } = util::decorate(DecorateIn {
@@ -756,17 +773,17 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         corrections,
     });
 
-    // 12. Insert New Instructions
+    // 13. Insert New Instructions
     instruction_inserts.insert(0, types_header_insert);
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);
 
-    // 13. Correct OpDecorate Bindings
+    // 14. Correct OpDecorate Bindings
     util::correct_decorate(CorrectDecorateIn {
         new_spv: &mut new_spv,
         descriptor_sets_to_correct,
     });
     prune_noops(&mut new_spv);
 
-    // 14. Write New Header and New Code
+    // 15. Write New Header and New Code
     Ok(fuse_final(spv_header, new_spv, instruction_bound))
 }

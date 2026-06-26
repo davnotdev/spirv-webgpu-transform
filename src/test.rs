@@ -300,3 +300,9 @@ test_with_spv_and_fn![
     "./test/splitbindingarray/texture_array_binding_array.spv",
     splitbindingarray
 ];
+test_with_spv_and_fn![
+    splitbinding_image_binding_array,
+    DO_ALL,
+    "./test/splitbindingarray/image_binding_array.spv",
+    splitbindingarray
+];
