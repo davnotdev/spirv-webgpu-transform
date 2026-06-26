@@ -299,10 +299,14 @@ This patch prunes samplers and textures that are unused.
 
 ## Library Usage
 
-Add this to your `Cargo.toml`:
+Add one of the following to your `Cargo.toml`:
 
 ```
+# Under heavy development, may lag versions.
 spirv-webgpu-transform = "0.1"
+
+# Latest fixes and features, may cause API breakages.
+spirv-webgpu-transform = { git = "https://github.com/davnotdev/spirv-webgpu-transform" }
 ```
 
 I recommend having a look at [`src/bin/spv_webgpu_transform.rs`](src/bin/spv_webgpu_transform.rs).
