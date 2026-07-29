@@ -31,6 +31,15 @@ pub struct CorrectionSet {
     pub bindings: HashMap<u32, CorrectionBinding>,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ImmediatesSetMode {
+    /// Place the immediates binding at certain set.
+    #[default]
+    Absolute,
+    /// Place the immediates binding at the max set or up to a certain set.
+    MaxUpTo,
+}
+
 /// Lookup a set and a binding for a list of [`CorrectionType`].
 /// In order, insert a new variable for each, see [`CorrectionType`] for what type of object should
 /// be inserted for each variant.
@@ -41,4 +50,8 @@ pub struct CorrectionMap {
     /// Control the set immediates should be written to by setting before patching.
     /// If this is [`None`], this becomes the max set plus one.
     pub immediates_set: Option<u32>,
+    /// Works as an input setting controlling the behaviour of `immediates_set`.
+    /// This is valuable when dealing with WebGPU's `maxBindGroup` especially if your sets
+    /// previously followed the maximum.
+    pub immediates_set_mode: Option<ImmediatesSetMode>,
 }

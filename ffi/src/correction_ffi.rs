@@ -20,6 +20,11 @@ pub enum TransformCorrectionType {
     SpirvWebgpuTransformCorrectionTypeSplitBindingArray = 4,
 }
 
+#[repr(C)]
+pub enum TransformImmediatesSetMode {
+    SpirvWebgpuTransformImmediatesSetModeAbsolute = 0,
+    SpirvWebgpuTransformImmediatesSetModeMaxUpTo = 1,
+}
 pub unsafe fn cast_correction_map(map: SpvTransformCorrectionMap) -> &'static mut CorrectionMap {
     unsafe { &mut *(map as *mut CorrectionMap) }
 }
@@ -103,7 +108,16 @@ pub unsafe extern "C" fn spirv_webgpu_transform_correction_read_immediates_set(
 pub unsafe extern "C" fn spirv_webgpu_transform_correction_write_immediates_set(
     correction_map: *mut SpvTransformCorrectionMap,
     value: u32,
+    mode: TransformImmediatesSetMode,
 ) {
     let correction_map = unsafe { cast_correction_map_or_default_alloc(correction_map) };
-    correction_map.immediates_set = Some(value)
+    correction_map.immediates_set = Some(value);
+    correction_map.immediates_set_mode = Some(match mode {
+        TransformImmediatesSetMode::SpirvWebgpuTransformImmediatesSetModeAbsolute => {
+            ImmediatesSetMode::Absolute
+        }
+        TransformImmediatesSetMode::SpirvWebgpuTransformImmediatesSetModeMaxUpTo => {
+            ImmediatesSetMode::MaxUpTo
+        }
+    });
 }
