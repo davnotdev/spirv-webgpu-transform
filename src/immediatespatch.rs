@@ -145,17 +145,31 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
             .map(|max| max + 1)
             .unwrap_or(0)
     };
-    let next_set = match (
+    let target_set = match (
         corrections.immediates_set,
         corrections.immediates_set_mode.unwrap_or_default(),
     ) {
         (Some(set), ImmediatesSetMode::MaxUpTo) => {
             let max_set = get_max_set();
-            if max_set <= set { max_set } else { set }
+            if max_set < set { max_set } else { set }
+        }
+        (Some(set), ImmediatesSetMode::MaxPlusOneUpTo) => {
+            let max_set = get_max_set();
+            if max_set < set { max_set + 1 } else { set }
         }
         (Some(set), ImmediatesSetMode::Absolute) => set,
         (None, _) => get_max_set(),
     };
+
+    let set_bindings =
+        decorate_map_set_bindings(&spv, &op_decorate_idxs, &HashSet::from([target_set]));
+    let starting_binding = set_bindings
+        .get(&target_set)
+        .unwrap()
+        .last()
+        .map(|&(b, _)| b + 1)
+        .unwrap_or(0usize);
+
     for (binding_idx, &(_, _, var_id)) in pc_variables.iter().enumerate() {
         instruction_inserts.push(InstructionInsert {
             previous_spv_idx: first_op_decorate_idx
@@ -164,16 +178,16 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
                 encode_word(4, SPV_INSTRUCTION_OP_DECORATE),
                 var_id,
                 SPV_DECORATION_DESCRIPTOR_SET,
-                next_set,
+                target_set,
                 encode_word(4, SPV_INSTRUCTION_OP_DECORATE),
                 var_id,
                 SPV_DECORATION_BINDING,
-                binding_idx as u32,
+                (starting_binding + binding_idx) as u32,
             ],
         });
     }
 
-    corrections.immediates_set = Some(next_set);
+    corrections.immediates_set = Some(target_set);
 
     // 8. Insert New Instructions
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);

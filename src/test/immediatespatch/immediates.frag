@@ -13,7 +13,7 @@ layout(push_constant) uniform PushBlock {
 } pc;
 
 layout(location = 0) in vec4 i_pos;
-layout(location = 0) out vec4 o_color;
+layout(location = 1) out vec4 o_color;
 
 void main() {
     o_color = pc.color * pc.scale

@@ -37,7 +37,13 @@ pub enum ImmediatesSetMode {
     #[default]
     Absolute,
     /// Place the immediates binding at the max set or up to a certain set.
+    /// This causes immediates to always mix with existing sets which may have negative performance
+    /// implications.
     MaxUpTo,
+    /// Place the immediates binding in the set after the max set or up to a certain set.
+    /// Unlike [`ImmediatesSetMode::MaxUpTo`], this attempts to give immediates their own set if
+    /// possible. 
+    MaxPlusOneUpTo,
 }
 
 /// Lookup a set and a binding for a list of [`CorrectionType`].
