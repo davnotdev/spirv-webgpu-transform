@@ -167,8 +167,8 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
         .get(&target_set)
         .unwrap()
         .last()
-        .map(|&(b, _)| b + 1)
-        .unwrap_or(0usize);
+        .map(|&(_, b)| b + 1)
+        .unwrap_or(0u32);
 
     for (binding_idx, &(_, _, var_id)) in pc_variables.iter().enumerate() {
         instruction_inserts.push(InstructionInsert {
@@ -182,7 +182,7 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
                 encode_word(4, SPV_INSTRUCTION_OP_DECORATE),
                 var_id,
                 SPV_DECORATION_BINDING,
-                (starting_binding + binding_idx) as u32,
+                starting_binding + binding_idx as u32,
             ],
         });
     }
