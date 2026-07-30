@@ -71,8 +71,8 @@ pub fn decorate_map_set_bindings(
         let mut bindings = candidates
             .iter()
             .filter_map(|(_, &(maybe_descriptor_set, maybe_binding))| {
-                let this_descriptor_set = maybe_descriptor_set.unwrap();
-                let (binding_idx, this_binding) = maybe_binding.unwrap();
+                let this_descriptor_set = maybe_descriptor_set?;
+                let (binding_idx, this_binding) = maybe_binding?;
                 (this_descriptor_set == descriptor_set).then_some((*binding_idx, this_binding))
             })
             .collect::<Vec<_>>();
