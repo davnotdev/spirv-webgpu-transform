@@ -142,23 +142,25 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
                 (decoration_id == SPV_DECORATION_DESCRIPTOR_SET).then_some(decoration_value)
             })
             .max()
-            .map(|max| max + 1)
-            .unwrap_or(0)
     };
     let target_set = match (
         corrections.immediates_set,
         corrections.immediates_set_mode.unwrap_or_default(),
     ) {
         (Some(set), ImmediatesSetMode::MaxUpTo) => {
-            let max_set = get_max_set();
+            let max_set = get_max_set().unwrap_or(0);
             if max_set < set { max_set } else { set }
         }
         (Some(set), ImmediatesSetMode::MaxPlusOneUpTo) => {
             let max_set = get_max_set();
-            if max_set < set { max_set + 1 } else { set }
+            if max_set < Some(set) {
+                max_set.map(|x| x + 1).unwrap_or(0)
+            } else {
+                set
+            }
         }
         (Some(set), ImmediatesSetMode::Absolute) => set,
-        (None, _) => get_max_set(),
+        (None, _) => get_max_set().map(|x| x + 1).unwrap_or(0),
     };
 
     let set_bindings =

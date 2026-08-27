@@ -39,10 +39,18 @@ pub enum ImmediatesSetMode {
     /// Place the immediates binding at the max set or up to a certain set.
     /// This causes immediates to always mix with existing sets which may have negative performance
     /// implications.
+    ///
+    /// TODO(davnotdev): Sounds like a great idea but what about mirroring?
+    /// What I mean is that this will cause you issues if you have a vertex shdaer and fragment
+    /// shader with different max uniform sets.
     MaxUpTo,
     /// Place the immediates binding in the set after the max set or up to a certain set.
     /// Unlike [`ImmediatesSetMode::MaxUpTo`], this attempts to give immediates their own set if
-    /// possible. 
+    /// possible.
+    ///
+    /// TODO(davnotdev): Sounds like a great idea but what about mirroring?
+    /// What I mean is that this will cause you issues if you have a vertex shdaer and fragment
+    /// shader with different max uniform sets.
     MaxPlusOneUpTo,
 }
 
