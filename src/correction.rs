@@ -41,7 +41,7 @@ pub enum ImmediatesSetMode {
     /// implications.
     ///
     /// TODO(davnotdev): Sounds like a great idea but what about mirroring?
-    /// What I mean is that this will cause you issues if you have a vertex shdaer and fragment
+    /// What I mean is that this will cause you issues if you have a vertex shader and fragment
     /// shader with different max uniform sets.
     MaxUpTo,
     /// Place the immediates binding in the set after the max set or up to a certain set.
@@ -49,9 +49,20 @@ pub enum ImmediatesSetMode {
     /// possible.
     ///
     /// TODO(davnotdev): Sounds like a great idea but what about mirroring?
-    /// What I mean is that this will cause you issues if you have a vertex shdaer and fragment
+    /// What I mean is that this will cause you issues if you have a vertex shader and fragment
     /// shader with different max uniform sets.
     MaxPlusOneUpTo,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ImmediatesBindingMode {
+    /// Always place the immediates binding one binding after the max binding of the set.
+    /// TODO(davnotdev): Once again, sounds like a great idea but what about mirroring?
+    /// If you have a fragment and vertex shader with hidden bindings, you will run into issues
+    #[default]
+    Last,
+    /// Place the immediates binding in a fixed binding index.
+    Absolute,
 }
 
 /// Lookup a set and a binding for a list of [`CorrectionType`].
@@ -68,4 +79,12 @@ pub struct CorrectionMap {
     /// This is valuable when dealing with WebGPU's `maxBindGroup` especially if your sets
     /// previously followed the maximum.
     pub immediates_set_mode: Option<ImmediatesSetMode>,
+    /// Represents both an input/output representing which binding the immediate uniform is written
+    /// to.
+    /// If [`ImmediatesBindingMode`] is [`ImmediatesBindingMode::Absolute`], set the index of the
+    /// immediates buffer binding.
+    pub immediates_binding: Option<u32>,
+    /// Works as an input setting, controlling how the immediate uniform's binding index should be determined
+    /// within the bind group set.
+    pub immediates_binding_mode: Option<ImmediatesBindingMode>,
 }

@@ -2,8 +2,9 @@
 
 use core::{ffi, ptr, slice};
 use spirv_webgpu_transform::{
-    CorrectionMap, ImmediatesSetMode, combimgsampsplitter, drefsplitter, immediatespatch,
-    isnanisinfpatch, mirrorpatch, pruneunuseddref, splitbindingarray, storagecubepatch,
+    CorrectionMap, ImmediatesBindingMode, ImmediatesSetMode, combimgsampsplitter, drefsplitter,
+    immediatespatch, isnanisinfpatch, mirrorpatch, pruneunuseddref, splitbindingarray,
+    storagecubepatch,
 };
 
 mod correction_ffi;

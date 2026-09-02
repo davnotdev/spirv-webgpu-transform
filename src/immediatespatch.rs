@@ -165,12 +165,18 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
 
     let set_bindings =
         decorate_map_set_bindings(&spv, &op_decorate_idxs, &HashSet::from([target_set]));
-    let starting_binding = set_bindings
-        .get(&target_set)
-        .unwrap()
-        .last()
-        .map(|&(_, b)| b + 1)
-        .unwrap_or(0u32);
+    let target_binding = match (
+        corrections.immediates_binding,
+        corrections.immediates_binding_mode,
+    ) {
+        (Some(binding_idx), Some(ImmediatesBindingMode::Absolute)) => binding_idx,
+        _ => set_bindings
+            .get(&target_set)
+            .unwrap()
+            .last()
+            .map(|&(_, b)| b + 1)
+            .unwrap_or(0u32),
+    };
 
     for (binding_idx, &(_, _, var_id)) in pc_variables.iter().enumerate() {
         instruction_inserts.push(InstructionInsert {
@@ -184,12 +190,13 @@ pub fn immediatespatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resul
                 encode_word(4, SPV_INSTRUCTION_OP_DECORATE),
                 var_id,
                 SPV_DECORATION_BINDING,
-                starting_binding + binding_idx as u32,
+                target_binding + binding_idx as u32,
             ],
         });
     }
 
     corrections.immediates_set = Some(target_set);
+    corrections.immediates_binding = Some(target_binding);
 
     // 8. Insert New Instructions
     insert_new_instructions(&spv, &mut new_spv, &word_inserts, &instruction_inserts);

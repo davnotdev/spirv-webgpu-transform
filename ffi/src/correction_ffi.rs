@@ -26,6 +26,13 @@ pub enum TransformImmediatesSetMode {
     SpirvWebgpuTransformImmediatesSetModeMaxUpTo = 1,
     SpirvWebgpuTransformImmediatesSetModeMaxPlusOneUpTo = 2,
 }
+
+#[repr(C)]
+pub enum TransformImmediatesBindingMode {
+    SpirvWebgpuTransformImmediatesBindingModeLast = 0,
+    SpirvWebgpuTransformImmediatesBindingModeAbsolute = 1,
+}
+
 pub unsafe fn cast_correction_map(map: SpvTransformCorrectionMap) -> &'static mut CorrectionMap {
     unsafe { &mut *(map as *mut CorrectionMap) }
 }
@@ -96,7 +103,10 @@ pub unsafe extern "C" fn spirv_webgpu_transform_correction_read_immediates_set(
     if !correction_map.is_null() {
         let correction_map = unsafe { cast_correction_map(correction_map) };
         if let Some(value) = correction_map.immediates_set {
-            return SpvTransformOptionalU32 { some: 1, value };
+            return SpvTransformOptionalU32 {
+                some: C_TRUE,
+                value,
+            };
         }
     }
     SpvTransformOptionalU32 {
@@ -122,6 +132,43 @@ pub unsafe extern "C" fn spirv_webgpu_transform_correction_write_immediates_set(
         }
         TransformImmediatesSetMode::SpirvWebgpuTransformImmediatesSetModeMaxPlusOneUpTo => {
             ImmediatesSetMode::MaxPlusOneUpTo
+        }
+    });
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn spirv_webgpu_transform_correction_read_immediates_binding(
+    correction_map: SpvTransformCorrectionMap,
+) -> SpvTransformOptionalU32 {
+    if !correction_map.is_null() {
+        let correction_map = unsafe { cast_correction_map(correction_map) };
+        if let Some(value) = correction_map.immediates_binding {
+            return SpvTransformOptionalU32 {
+                some: C_TRUE,
+                value,
+            };
+        }
+    }
+    SpvTransformOptionalU32 {
+        some: C_FALSE,
+        ..Default::default()
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn spirv_webgpu_transform_correction_write_immediates_binding(
+    correction_map: *mut SpvTransformCorrectionMap,
+    mode: TransformImmediatesBindingMode,
+    value: SpvTransformOptionalU32,
+) {
+    let correction_map = unsafe { cast_correction_map_or_default_alloc(correction_map) };
+    correction_map.immediates_binding = (value.some == C_TRUE).then_some(value.value);
+    correction_map.immediates_binding_mode = Some(match mode {
+        TransformImmediatesBindingMode::SpirvWebgpuTransformImmediatesBindingModeLast => {
+            ImmediatesBindingMode::Last
+        }
+        TransformImmediatesBindingMode::SpirvWebgpuTransformImmediatesBindingModeAbsolute => {
+            ImmediatesBindingMode::Absolute
         }
     });
 }
