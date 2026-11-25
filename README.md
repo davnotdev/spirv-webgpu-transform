@@ -343,3 +343,8 @@ See [`ffi/bin/spv_webgpu_transform.c`](ffi/bin/spv_webgpu_transform.c)
 ---
 
 > Enjoy!
+
+## LLM Disclosure
+
+[LLM(2)](https://github.com/davnotdev/disclosure-levels) - This project uses some LLM copiloting with human approval.
+
