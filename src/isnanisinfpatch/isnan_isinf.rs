@@ -9,6 +9,7 @@ pub(super) fn is_nan_is_inf_spv(
     shared_constants: NanInfSharedConstants,
 ) -> (u32, Vec<u32>) {
     // The only difference between the two is one OpIEqual vs OpINotEqual
+    // (isnan: frac != 0, isinf: frac == 0)
     //
     // %isnan_f1_ = OpFunction %bool None %_function_type
     //         %x = OpFunctionParameter %_ptr_Function_float
@@ -29,7 +30,7 @@ pub(super) fn is_nan_is_inf_spv(
     //         %9 = OpLoad %uint %exp
     //        %10 = OpIEqual %bool %9 %uint_255
     //        %11 = OpLoad %uint %frac
-    //        %12 = OpIEqual %bool %11 %uint_0
+    //        %12 = OpINotEqual %bool %11 %uint_0
     //        %13 = OpLogicalAnd %bool %10 %12
     //              OpReturnValue %13
     //              OpFunctionEnd
@@ -53,7 +54,7 @@ pub(super) fn is_nan_is_inf_spv(
     //          %9 = OpLoad %uint %exp
     //         %10 = OpIEqual %bool %9 %uint_255
     //         %11 = OpLoad %uint %frac
-    //         %12 = OpINotEqual %bool %11 %uint_0
+    //         %12 = OpIEqual %bool %11 %uint_0
     //         %13 = OpLogicalAnd %bool %10 %12
     //               OpReturnValue %13
     //               OpFunctionEnd
@@ -139,8 +140,8 @@ pub(super) fn is_nan_is_inf_spv(
             uint_id, res_11, frac, 
         encode_word(5, 
             match ty {
-                IsNanOrIsInf::IsNan => SPV_INSTRUCTION_OP_I_EQUAL,
-                IsNanOrIsInf::IsInf => SPV_INSTRUCTION_OP_I_NOT_EQUAL,
+                IsNanOrIsInf::IsNan => SPV_INSTRUCTION_OP_I_NOT_EQUAL,
+                IsNanOrIsInf::IsInf => SPV_INSTRUCTION_OP_I_EQUAL,
             }
             ),
             bool_id, res_12, res_11, uint_0,
