@@ -206,13 +206,15 @@ fn patch_spv_decorations(
             });
 
             // Convert into affected decoration
-            Ok(AffectedDecoration {
-                original_res_id: original_variable_id,
-                new_res_ids: vec![new_res_id],
-                correction_type,
-            })
+            Ok((
+                OriginalResId(original_variable_id),
+                AffectedDecoration {
+                    new_res_ids: vec![new_res_id],
+                    correction_type,
+                },
+            ))
         })
-        .collect::<Result<Vec<_>, _>>();
+        .collect::<Result<HashMap<_, _>, _>>();
 
     let affected_decorations = match affected_decorations {
         Ok(d) => d,

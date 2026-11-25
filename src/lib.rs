@@ -80,7 +80,9 @@ pub fn u8_slice_to_u32_vec(vec: &[u8]) -> Vec<u32> {
         "Input slice length must be a multiple of 4."
     );
 
-    vec.chunks_exact(4)
+    vec.as_chunks::<4>()
+        .0
+        .iter()
         .map(|chunk| {
             (chunk[0] as u32)
                 | ((chunk[1] as u32) << 8)

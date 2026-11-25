@@ -44,10 +44,7 @@ where
 
 /// Perform the operation on a `Vec<u32>`.
 /// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`.
-pub fn storagecubepatch(
-    in_spv: &[u32],
-    corrections: &mut CorrectionMap,
-) -> Result<Vec<u32>, ()> {
+pub fn storagecubepatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 
     let mut instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
@@ -343,12 +340,16 @@ pub fn storagecubepatch(
         op_decorate_idxs: &op_decorate_idxs,
         affected_decorations: &loadable_ids
             .iter()
-            .map(|id| AffectedDecoration {
-                original_res_id: *id,
-                new_res_ids: vec![*id],
-                correction_type: CorrectionType::ConvertStorageCube,
+            .map(|id| {
+                (
+                    OriginalResId(*id),
+                    AffectedDecoration {
+                        new_res_ids: vec![*id],
+                        correction_type: CorrectionType::ConvertStorageCube,
+                    },
+                )
             })
-            .collect::<Vec<_>>(),
+            .collect::<HashMap<_, _>>(),
         corrections,
     });
 

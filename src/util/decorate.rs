@@ -2,10 +2,12 @@ use super::*;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffectedDecoration {
-    pub original_res_id: u32,
     pub new_res_ids: Vec<u32>,
     pub correction_type: CorrectionType,
 }
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct OriginalResId(pub u32);
 
 pub struct DecorateIn<'a> {
     pub spv: &'a [u32],
@@ -14,7 +16,7 @@ pub struct DecorateIn<'a> {
     pub first_op_deocrate_idx: Option<usize>,
     pub op_decorate_idxs: &'a [usize],
 
-    pub affected_decorations: &'a [AffectedDecoration],
+    pub affected_decorations: &'a HashMap<OriginalResId, AffectedDecoration>,
     pub corrections: &'a mut CorrectionMap,
 }
 
@@ -59,30 +61,26 @@ pub fn decorate(d_in: DecorateIn) -> DecorateOut {
                 .1 = Some(decoration_value);
         }
 
-        affected_variables.iter().for_each(
-            |AffectedDecoration {
-                 original_res_id,
-                 new_res_ids,
-                 correction_type,
-             }| {
-                if *original_res_id == target_id {
-                    for new_res_id in new_res_ids {
-                        if decoration_id == SPV_DECORATION_BINDING {
-                            new_variable_id_to_decorations
-                                .entry((new_res_id, correction_type))
-                                .or_insert((None, None))
-                                .0 = Some((d_idx, decoration_value));
-                        } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
-                            new_variable_id_to_decorations
-                                .entry((new_res_id, correction_type))
-                                .or_insert((None, None))
-                                .1 = Some((d_idx, decoration_value));
-                            descriptor_sets_to_correct.insert(decoration_value);
-                        }
-                    }
+        if let Some(AffectedDecoration {
+            new_res_ids,
+            correction_type,
+        }) = affected_variables.get(&OriginalResId(target_id))
+        {
+            for new_res_id in new_res_ids {
+                if decoration_id == SPV_DECORATION_BINDING {
+                    new_variable_id_to_decorations
+                        .entry((new_res_id, correction_type))
+                        .or_insert((None, None))
+                        .0 = Some((d_idx, decoration_value));
+                } else if decoration_id == SPV_DECORATION_DESCRIPTOR_SET {
+                    new_variable_id_to_decorations
+                        .entry((new_res_id, correction_type))
+                        .or_insert((None, None))
+                        .1 = Some((d_idx, decoration_value));
+                    descriptor_sets_to_correct.insert(decoration_value);
                 }
-            },
-        );
+            }
+        }
     });
 
     // - Sort and unwrap set binding pairs.

@@ -189,6 +189,7 @@ pub fn combimgsampsplitter(
         instruction_inserts: &mut instruction_inserts,
         first_op_deocrate_idx,
         op_decorate_idxs: &op_decorate_idxs,
+        // To my knowledge, the non-deterministic order is OK here.
         affected_decorations: &v_res
             .iter()
             .map(
@@ -199,14 +200,16 @@ pub fn combimgsampsplitter(
                         ..
                     },
                 )| {
-                    AffectedDecoration {
-                        original_res_id: *v_res_id,
-                        new_res_ids: vec![*new_sampler_v_res_id],
-                        correction_type: CorrectionType::SplitCombined,
-                    }
+                    (
+                        OriginalResId(*v_res_id),
+                        AffectedDecoration {
+                            new_res_ids: vec![*new_sampler_v_res_id],
+                            correction_type: CorrectionType::SplitCombined,
+                        },
+                    )
                 },
             )
-            .collect::<Vec<_>>(),
+            .collect::<HashMap<_, _>>(),
         corrections,
     });
 

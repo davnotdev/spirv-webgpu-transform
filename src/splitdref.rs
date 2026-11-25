@@ -49,10 +49,7 @@ where
 
 /// Perform the operation on a `Vec<u32>`.
 /// Use [u8_slice_to_u32_vec] to convert a `&[u8]` into a `Vec<u32>`.
-pub fn drefsplitter(
-    in_spv: &[u32],
-    corrections: &mut CorrectionMap,
-) -> Result<Vec<u32>, ()> {
+pub fn drefsplitter(in_spv: &[u32], corrections: &mut CorrectionMap) -> Result<Vec<u32>, ()> {
     let spv = in_spv.to_owned();
 
     let mut instruction_bound = spv[SPV_HEADER_INSTRUCTION_BOUND_OFFSET];
@@ -516,7 +513,7 @@ pub fn drefsplitter(
     // Map new function arguments to the correct instructions.
     // NOTE: GENERALLY, with glslc, each OpImage* will get its own OpLoad, so we don't need to
     // check that its result isn't used for both regular and dref operations!
-    let mut affected_variables = Vec::new();
+    let mut affected_variables = HashMap::new();
 
     // There may be a shared OpTypeFunction but not shared OpFunctionParameter
     let mut patched_function_types = HashMap::new();
@@ -549,14 +546,16 @@ pub fn drefsplitter(
             instruction: new_variable,
         });
 
-        affected_variables.push(AffectedDecoration {
-            original_res_id: spv[variable_idx + 2],
-            new_res_ids: vec![new_variable_id],
-            correction_type: match complement_ty {
-                OperationVariant::Regular => CorrectionType::SplitDrefRegular,
-                OperationVariant::Dref => CorrectionType::SplitDrefComparison,
+        affected_variables.insert(
+            OriginalResId(spv[variable_idx + 2]),
+            AffectedDecoration {
+                new_res_ids: vec![new_variable_id],
+                correction_type: match complement_ty {
+                    OperationVariant::Regular => CorrectionType::SplitDrefRegular,
+                    OperationVariant::Dref => CorrectionType::SplitDrefComparison,
+                },
             },
-        });
+        );
 
         // OpLoad
         match lty {

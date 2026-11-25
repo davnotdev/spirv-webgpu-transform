@@ -188,7 +188,7 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
     };
     let mut new_vfp_map = HashMap::new();
     let mut function_type_changes = HashMap::new();
-    let mut affected_decorations = vec![];
+    let mut affected_decorations = HashMap::new();
 
     for &(vfp_idx, ta_idx, array_type) in array_vfp_ta_idxs.iter() {
         new_spv[vfp_idx..vfp_idx + hiword(spv[vfp_idx]) as usize]
@@ -254,11 +254,13 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
 
                 // We only want `N-1` correction bindings.
                 let new_ids = (base_id + 1..base_id + length).collect::<Vec<_>>();
-                affected_decorations.push(AffectedDecoration {
-                    original_res_id: old_result_id,
-                    new_res_ids: new_ids,
-                    correction_type: CorrectionType::SplitBindingArray,
-                });
+                affected_decorations.insert(
+                    OriginalResId(old_result_id),
+                    AffectedDecoration {
+                        new_res_ids: new_ids,
+                        correction_type: CorrectionType::SplitBindingArray,
+                    },
+                );
             }
             SPV_INSTRUCTION_OP_FUNCTION_PARAMETER => {
                 let mut new_param_instructions = vec![];
