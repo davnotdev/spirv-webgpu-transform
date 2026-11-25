@@ -104,6 +104,30 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         spv_idx += word_count as usize;
     }
 
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct TypeArrayId(pub u32);
+    let mut ta_by_id: HashMap<TypeArrayId, usize> = HashMap::new();
+    for &ta_idx in op_type_array_idxs.iter() {
+        ta_by_id
+            .entry(TypeArrayId(spv[ta_idx + 1]))
+            .or_insert(ta_idx);
+    }
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct OpaqueTypeId(pub u32);
+    let opaque_type_ids = op_type_image_idxs
+        .iter()
+        .chain(op_type_sampler_idxs.iter())
+        .map(|&t_idx| OpaqueTypeId(spv[t_idx + 1]))
+        .collect::<HashSet<_>>();
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct ConstantId(pub u32);
+    let mut constants: HashMap<ConstantId, u32> = HashMap::new();
+    for &constant_idx in op_constant_idxs.iter() {
+        constants
+            .entry(ConstantId(spv[constant_idx + 2]))
+            .or_insert(spv[constant_idx + 3]);
+    }
+
     // 2. OpTypeArray -> OpTypePointer
     //      -> OpVariable
     //      -> OpFunctionParameter
@@ -119,24 +143,25 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
                 return None;
             }
 
-            op_type_array_idxs
-                .iter()
-                .find(|&ta_idx| {
-                    let ta_res_id = spv[ta_idx + 1];
+            ta_by_id.get(&TypeArrayId(tp_underlying_id)).map(|&ta_idx| {
+                let array_type = opaque_type_ids
+                    .contains(&OpaqueTypeId(spv[ta_idx + 2]))
+                    .then_some(OpaqueArrayType);
 
-                    ta_res_id == tp_underlying_id
-                })
-                .map(|&ta_idx| {
-                    let array_type = op_type_image_idxs
-                        .iter()
-                        .chain(op_type_sampler_idxs.iter())
-                        .any(|&t_idx| spv[t_idx + 1] == spv[ta_idx + 2])
-                        .then_some(OpaqueArrayType);
-
-                    (tp_idx, ta_idx, array_type)
-                })
+                (tp_idx, ta_idx, array_type)
+            })
         })
         .collect::<Vec<_>>();
+
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct TypePointerId(pub u32);
+    let mut array_tp_by_id: HashMap<TypePointerId, (usize, Option<OpaqueArrayType>)> =
+        HashMap::new();
+    for &(tp_idx, ta_idx, array_type) in array_tp_ta_idxs.iter() {
+        array_tp_by_id
+            .entry(TypePointerId(spv[tp_idx + 1]))
+            .or_insert((ta_idx, array_type));
+    }
 
     // Contains ((OpVariable or OpFunctionParameter), OpTypePointer, Option<OpaqueArrayType>)
     // OpVariable is a subtype of OpFunctionParameter over the first three words.
@@ -145,24 +170,21 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         .chain(op_function_parameter_idxs.iter())
         .filter_map(|&vfp_idx| {
             let variable_type_id = spv[vfp_idx + 1];
-            array_tp_ta_idxs
-                .iter()
-                .find(|&(tp_idx, _, _)| {
-                    let tp_res_id = spv[tp_idx + 1];
-                    tp_res_id == variable_type_id
-                })
-                .map(|&(_, ta_idx, array_type)| (vfp_idx, ta_idx, array_type))
+            array_tp_by_id
+                .get(&TypePointerId(variable_type_id))
+                .map(|&(ta_idx, array_type)| (vfp_idx, ta_idx, array_type))
         })
         .collect::<Vec<_>>();
 
     // TODO: Implement for nested arrays.
+    let array_pointee_ids = array_tp_ta_idxs
+        .iter()
+        .map(|&(_, ta_jdx, _)| TypeArrayId(spv[ta_jdx + 1]))
+        .collect::<HashSet<_>>();
     for ta_idx in op_type_array_idxs.iter() {
         let ta_underlying_id = spv[ta_idx + 2];
-        for (_, ta_jdx, _) in array_tp_ta_idxs.iter() {
-            let j_result_id = spv[ta_jdx + 1];
-            if j_result_id == ta_underlying_id && ta_idx != ta_jdx {
-                unimplemented!("How dare you use nested arrays! (Unimplemented)");
-            }
+        if array_pointee_ids.contains(&TypeArrayId(ta_underlying_id)) {
+            unimplemented!("How dare you use nested arrays! (Unimplemented)");
         }
     }
 
@@ -171,9 +193,7 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         .iter()
         .map(|(_, ta_idx, _)| {
             let length_id = spv[ta_idx + 3];
-            let Some(length) = op_constant_idxs.iter().find_map(|&constant_idx| {
-                (spv[constant_idx + 2] == length_id).then_some(spv[constant_idx + 3])
-            }) else {
+            let Some(&length) = constants.get(&ConstantId(length_id)) else {
                 panic!("Missing OpConstant")
             };
             (ta_idx, length)
@@ -329,18 +349,25 @@ pub fn splitbindingarray(in_spv: &[u32], corrections: &mut CorrectionMap) -> Res
         types_header_insert.instruction.extend_from_slice(&new_tf);
     }
 
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct VariableId(pub u32);
+    let mut vfp_by_result_id: HashMap<VariableId, &(usize, usize, Option<OpaqueArrayType>)> =
+        HashMap::new();
+    for entry in array_vfp_ta_idxs.iter() {
+        vfp_by_result_id
+            .entry(VariableId(spv[entry.0 + 2]))
+            .or_insert(entry);
+    }
+
     let access_idxs = op_access_chain_idxs
         .iter()
         .chain(op_in_bounds_access_chain_idxs.iter())
         .filter_map(|&ac_idx| {
             let base_id = spv[ac_idx + 3];
-            array_vfp_ta_idxs
-                .iter()
-                .find(|&(vfp_idx, _, _)| {
-                    let result_id = spv[*vfp_idx + 2];
-                    result_id == base_id
-                })
-                .map(|(vfp_idx, ta_idx, array_type)| (ac_idx, vfp_idx, ta_idx, array_type))
+            vfp_by_result_id.get(&VariableId(base_id)).map(|&entry| {
+                let (vfp_idx, ta_idx, array_type) = entry;
+                (ac_idx, vfp_idx, ta_idx, array_type)
+            })
         })
         .collect::<Vec<_>>();
 
