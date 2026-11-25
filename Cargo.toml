@@ -7,7 +7,6 @@ version = "0.1.7"
 edition = "2024"
 description = "Transform SPIRV to be webgpu friendly"
 repository = "https://github.com/davnotdev/spirv-webgpu-transform"
-homepage = "https://github.com/davnotdev/spirv-webgpu-transform"
 license = "BSD-2-Clause"
 keywords = ["gamedev", "graphics"]
 categories = ["graphics"]
