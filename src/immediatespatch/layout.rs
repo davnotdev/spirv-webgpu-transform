@@ -51,7 +51,7 @@ pub(super) fn base_align(t: &TypeKind, rule: LayoutRule) -> u32 {
             n => panic!("Unsupported vector component count: {}", n),
         },
         // §15.6.4: "A column-major matrix has a base alignment equal to the base alignment of the column vector type."
-        // RowMajor is handled at MatrixStride emission time; the type itself describes columns.
+        // TODO: Handle row major!
         TypeKind::Matrix { column, .. } => base_align(&column.kind, rule),
         // §15.6.4: "An array has a base alignment equal to the base alignment of its element type" — modulo the std140 round-up below.
         TypeKind::Array { element, .. } => base_align(&element.kind, rule),
@@ -67,7 +67,10 @@ pub(super) fn base_align(t: &TypeKind, rule: LayoutRule) -> u32 {
     //   - Struct's base alignment is rounded up to a multiple of 16.
     // The Standard Storage Buffer Layout (and push constants) omit this rule.
     match (rule, t) {
-        (LayoutRule::Std140, TypeKind::Array { .. } | TypeKind::Struct { .. }) => inner.max(16),
+        (
+            LayoutRule::Std140,
+            TypeKind::Array { .. } | TypeKind::Struct { .. } | TypeKind::Matrix { .. },
+        ) => inner.max(16),
         _ => inner,
     }
 }
