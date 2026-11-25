@@ -9,8 +9,8 @@ pub struct LoadIn<'a> {
     pub op_type_sampler_res_id: u32,
     pub op_loads_idxs: &'a [usize],
 
-    pub v_res: &'a [VariableOut],
-    pub parameter_res: &'a [FunctionParameterOut],
+    pub v_res: &'a HashMap<VariableId, VariableOut>,
+    pub parameter_res: &'a HashMap<FunctionParameterId, FunctionParameterOut>,
 }
 
 pub fn load(l_in: LoadIn) {
@@ -29,36 +29,20 @@ pub fn load(l_in: LoadIn) {
         .iter()
         .filter_map(|&l_idx| {
             // - Find all OpLoads that ref our v_res_ids
-            v_res.iter().find_map(
+            v_res.get(&VariableId(spv[l_idx + 3])).map(
                 |&VariableOut {
-                     v_res_id,
                      new_sampler_v_res_id,
                      underlying_image_id,
-                     ..
-                 }| {
-                    (v_res_id == spv[l_idx + 3]).then_some((
-                        l_idx,
-                        new_sampler_v_res_id,
-                        underlying_image_id,
-                    ))
-                },
+                 }| (l_idx, new_sampler_v_res_id, underlying_image_id),
             )
         })
         .chain(op_loads_idxs.iter().filter_map(|&l_idx| {
             // - Find all OpLoads that ref our parameter_res_ids
-            parameter_res.iter().find_map(
+            parameter_res.get(&FunctionParameterId(spv[l_idx + 3])).map(
                 |FunctionParameterOut {
-                     image_parameter_res_id,
                      sampler_parameter_res_id,
                      underlying_image_id,
-                     ..
-                 }| {
-                    (*image_parameter_res_id == spv[l_idx + 3]).then_some((
-                        l_idx,
-                        *sampler_parameter_res_id,
-                        *underlying_image_id,
-                    ))
-                },
+                 }| { (l_idx, *sampler_parameter_res_id, *underlying_image_id) },
             )
         }))
         .for_each(|(l_idx, sampler_v_res_id, underlying_image_id)| {

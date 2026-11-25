@@ -8,16 +8,20 @@ pub struct FunctionParameterIn<'a> {
     pub op_type_pointer_sampler_res_id: u32,
     pub op_function_parameter_idxs: &'a [usize],
 
-    pub tp_res: &'a [TypePointerOut],
+    pub tp_res: &'a HashMap<TypePointerId, TypePointerOut>,
 }
 
 pub struct FunctionParameterOut {
-    pub image_parameter_res_id: u32,
     pub sampler_parameter_res_id: u32,
     pub underlying_image_id: u32,
 }
 
-pub fn function_parameter(fp_in: FunctionParameterIn) -> Vec<FunctionParameterOut> {
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct FunctionParameterId(pub u32);
+
+pub fn function_parameter(
+    fp_in: FunctionParameterIn,
+) -> HashMap<FunctionParameterId, FunctionParameterOut> {
     let FunctionParameterIn {
         spv,
         instruction_bound,
@@ -33,17 +37,10 @@ pub fn function_parameter(fp_in: FunctionParameterIn) -> Vec<FunctionParameterOu
         .iter()
         .filter_map(|&fp_idx| {
             // - Find all OpFunctionParameters that use a combimg OpTypePointer
-            tp_res.iter().find_map(
+            tp_res.get(&TypePointerId(spv[fp_idx + 1])).map(
                 |&TypePointerOut {
-                     tp_res_id,
                      underlying_image_id,
-                 }| {
-                    (spv[fp_idx + 1] == tp_res_id).then_some((
-                        fp_idx,
-                        spv[fp_idx + 2],
-                        underlying_image_id,
-                    ))
-                },
+                 }| { (fp_idx, spv[fp_idx + 2], underlying_image_id) },
             )
         })
         .for_each(|(fp_idx, image_parameter_res_id, underlying_image_id)| {
@@ -59,21 +56,13 @@ pub fn function_parameter(fp_in: FunctionParameterIn) -> Vec<FunctionParameterOu
                 ],
             });
             parameter_res_ids.insert(
-                image_parameter_res_id,
-                (sampler_parameter_res_id, underlying_image_id),
+                FunctionParameterId(image_parameter_res_id),
+                FunctionParameterOut {
+                    sampler_parameter_res_id,
+                    underlying_image_id,
+                },
             );
         });
 
     parameter_res_ids
-        .into_iter()
-        .map(
-            |(image_parameter_res_id, (sampler_parameter_res_id, underlying_image_id))| {
-                FunctionParameterOut {
-                    image_parameter_res_id,
-                    sampler_parameter_res_id,
-                    underlying_image_id,
-                }
-            },
-        )
-        .collect::<Vec<_>>()
 }

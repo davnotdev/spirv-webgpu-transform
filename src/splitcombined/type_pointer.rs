@@ -1,3 +1,5 @@
+use super::*;
+
 pub struct TypePointerIn<'a> {
     pub spv: &'a [u32],
     pub new_spv: &'a mut [u32],
@@ -7,12 +9,14 @@ pub struct TypePointerIn<'a> {
 }
 
 pub struct TypePointerOut {
-    pub tp_res_id: u32,
     pub underlying_image_id: u32,
 }
 
-pub fn type_pointer(tp_in: TypePointerIn) -> Vec<TypePointerOut> {
-    let mut tp_res = vec![];
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct TypePointerId(pub u32);
+
+pub fn type_pointer(tp_in: TypePointerIn) -> HashMap<TypePointerId, TypePointerOut> {
+    let mut tp_res = HashMap::new();
 
     let TypePointerIn {
         spv,
@@ -35,10 +39,12 @@ pub fn type_pointer(tp_in: TypePointerIn) -> Vec<TypePointerOut> {
             new_spv[tp_spv_idx + 3] = underlying_image_id;
 
             // - Save the OpTypePointer res id for later
-            tp_res.push(TypePointerOut {
-                tp_res_id: spv[tp_spv_idx + 1],
-                underlying_image_id,
-            });
+            tp_res.insert(
+                TypePointerId(spv[tp_spv_idx + 1]),
+                TypePointerOut {
+                    underlying_image_id,
+                },
+            );
         });
 
     tp_res

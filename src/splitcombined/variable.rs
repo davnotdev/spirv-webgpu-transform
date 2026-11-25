@@ -8,17 +8,19 @@ pub struct VariableIn<'a> {
     pub op_type_pointer_sampler_res_id: u32,
     pub op_variables_idxs: &'a [usize],
 
-    pub tp_res: &'a [TypePointerOut],
+    pub tp_res: &'a HashMap<TypePointerId, TypePointerOut>,
 }
 
 pub struct VariableOut {
-    pub v_res_id: u32,
     pub new_sampler_v_res_id: u32,
     pub underlying_image_id: u32,
 }
 
-pub fn variable(v_in: VariableIn) -> Vec<VariableOut> {
-    let mut v_res = vec![];
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+pub struct VariableId(pub u32);
+
+pub fn variable(v_in: VariableIn) -> HashMap<VariableId, VariableOut> {
+    let mut v_res = HashMap::new();
 
     let VariableIn {
         spv,
@@ -33,17 +35,10 @@ pub fn variable(v_in: VariableIn) -> Vec<VariableOut> {
         .iter()
         .filter_map(|&v_idx| {
             // - Find all OpVariables that ref our tp_spv_idxs
-            tp_res.iter().find_map(
+            tp_res.get(&TypePointerId(spv[v_idx + 1])).map(
                 |&TypePointerOut {
-                     tp_res_id,
                      underlying_image_id,
-                 }| {
-                    (tp_res_id == spv[v_idx + 1]).then_some((
-                        v_idx,
-                        spv[v_idx + 2],
-                        underlying_image_id,
-                    ))
-                },
+                 }| (v_idx, spv[v_idx + 2], underlying_image_id),
             )
         })
         .for_each(|(v_idx, v_res_id, underlying_image_id)| {
@@ -60,11 +55,13 @@ pub fn variable(v_in: VariableIn) -> Vec<VariableOut> {
                 ],
             });
             // - Save the OpVariable res id for later
-            v_res.push(VariableOut {
-                v_res_id,
-                new_sampler_v_res_id,
-                underlying_image_id,
-            });
+            v_res.insert(
+                VariableId(v_res_id),
+                VariableOut {
+                    new_sampler_v_res_id,
+                    underlying_image_id,
+                },
+            );
         });
 
     v_res

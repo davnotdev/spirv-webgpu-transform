@@ -192,11 +192,13 @@ pub fn combimgsampsplitter(
         affected_decorations: &v_res
             .iter()
             .map(
-                |VariableOut {
-                     v_res_id,
-                     new_sampler_v_res_id,
-                     ..
-                 }| {
+                |(
+                    VariableId(v_res_id),
+                    VariableOut {
+                        new_sampler_v_res_id,
+                        ..
+                    },
+                )| {
                     AffectedDecoration {
                         original_res_id: *v_res_id,
                         new_res_ids: vec![*new_sampler_v_res_id],

@@ -6,8 +6,8 @@ pub struct FunctionCallIn<'a> {
 
     pub op_function_call_idxs: &'a [usize],
 
-    pub v_res: &'a [VariableOut],
-    pub parameter_res: &'a [FunctionParameterOut],
+    pub v_res: &'a HashMap<VariableId, VariableOut>,
+    pub parameter_res: &'a HashMap<FunctionParameterId, FunctionParameterOut>,
 }
 
 pub fn function_call(fc_in: FunctionCallIn) {
@@ -24,19 +24,23 @@ pub fn function_call(fc_in: FunctionCallIn) {
             // - Handle use of nested function calls
             .iter()
             .map(
-                |FunctionParameterOut {
-                     image_parameter_res_id,
-                     sampler_parameter_res_id,
-                     ..
-                 }| { (image_parameter_res_id, sampler_parameter_res_id) },
+                |(
+                    FunctionParameterId(image_parameter_res_id),
+                    FunctionParameterOut {
+                        sampler_parameter_res_id,
+                        ..
+                    },
+                )| { (image_parameter_res_id, sampler_parameter_res_id) },
             )
             // - Handle use of uniform variables
             .chain(v_res.iter().map(
-                |VariableOut {
-                     v_res_id: image_id,
-                     new_sampler_v_res_id: sampler_id,
-                     ..
-                 }| (image_id, sampler_id),
+                |(
+                    VariableId(image_id),
+                    VariableOut {
+                        new_sampler_v_res_id: sampler_id,
+                        ..
+                    },
+                )| (image_id, sampler_id),
             ))
             .for_each(|(&image_id, &sampler_id)| {
                 let word_count = hiword(spv[fc_idx]);
