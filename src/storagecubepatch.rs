@@ -230,6 +230,8 @@ pub fn storagecubepatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resu
     let mut function_definition_words = function_spv;
 
     // 5. Find OpTypeImage, change Cube -> 2D
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct TypeImageId(pub u32);
     let type_image_ids = op_type_image_idxs
         .iter()
         .filter_map(|idx| {
@@ -247,14 +249,16 @@ pub fn storagecubepatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resu
             if dim == SPV_DIMENSION_CUBE && sampled == 2 {
                 new_spv[idx + 3] = SPV_DIMENSION_2D;
                 new_spv[idx + 5] = 1;
-                Some(result_id)
+                Some(TypeImageId(result_id))
             } else {
                 None
             }
         })
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
 
     // 6. Find OpTypePointer -> OpVariable / OpFunctionParameter -> OpLoad
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct TypePointerId(pub u32);
     let type_pointer_ids = op_type_pointer_idxs
         .iter()
         .filter_map(|idx| {
@@ -262,10 +266,12 @@ pub fn storagecubepatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resu
             let underlying_type_id = spv[idx + 3];
 
             type_image_ids
-                .contains(&underlying_type_id)
-                .then_some(result_id)
+                .contains(&TypeImageId(underlying_type_id))
+                .then_some(TypePointerId(result_id))
         })
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
+    #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+    struct LoadId(pub u32);
     let loadable_ids = op_variable_idxs
         .iter()
         // Yes, offsets 1 and 2 are identical
@@ -274,19 +280,21 @@ pub fn storagecubepatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resu
             let result_id = spv[idx + 2];
             let result_type_id = spv[idx + 1];
             type_pointer_ids
-                .contains(&result_type_id)
-                .then_some(result_id)
+                .contains(&TypePointerId(result_type_id))
+                .then_some(LoadId(result_id))
         })
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
     let loaded_ids = op_load_idxs
         .iter()
         .filter_map(|idx| {
             let result_id = spv[idx + 2];
             let pointer_id = spv[idx + 3];
 
-            loadable_ids.contains(&pointer_id).then_some(result_id)
+            loadable_ids
+                .contains(&LoadId(pointer_id))
+                .then_some(LoadId(result_id))
         })
-        .collect::<Vec<_>>();
+        .collect::<HashSet<_>>();
 
     // 7. Find and Patch OpImage{Fetch, Read, Write}
     for operation_with_idx in image_operation_idxs.iter() {
@@ -295,7 +303,7 @@ pub fn storagecubepatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resu
         let image_id = spv[op_idx + operation_with_idx.image_offset()];
         let coord_id = spv[op_idx + operation_with_idx.coordinate_offset()];
 
-        if loaded_ids.contains(&image_id) {
+        if loaded_ids.contains(&LoadId(image_id)) {
             // Inject new temp variable to store coordinate
             // TODO: OPT further reduce the number of temp variables by sharing then within the same functions
             let temp_id = inc(&mut instruction_bound);
@@ -341,10 +349,11 @@ pub fn storagecubepatch(in_spv: &[u32], corrections: &mut CorrectionMap) -> Resu
         affected_decorations: &loadable_ids
             .iter()
             .map(|id| {
+                let load_id = id.0;
                 (
-                    OriginalResId(*id),
+                    OriginalResId(load_id),
                     AffectedDecoration {
-                        new_res_ids: vec![*id],
+                        new_res_ids: vec![load_id],
                         correction_type: CorrectionType::ConvertStorageCube,
                     },
                 )
